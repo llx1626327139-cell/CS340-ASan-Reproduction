@@ -1,0 +1,36 @@
+name: asan-reproduction
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  detect:
+    name: 编译并运行全部 ASan 用例
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 打印工具链版本
+        run: |
+          gcc --version | head -n 1
+          uname -a
+
+      - name: 构建
+        run: make
+
+      - name: 运行用例（预期全部崩溃，因此允许非零退出）
+        run: bash scripts/run_all.sh || true
+
+      - name: 把报告回显到日志
+        run: cat reports/summary.md
+
+      - name: 上传报告产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: asan-reports
+          path: reports/
+          if-no-files-found: warn
