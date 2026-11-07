@@ -62,7 +62,8 @@ gcc -std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address \
 ├── scripts/run_all.sh      # 批量运行 + 汇总表格
 ├── docs/
 │   ├── 01-asan-internals.md    # 影子内存 / 插桩 / 拦截器 原理
-│   └── 02-report-anatomy.md    # 逐字段解读一份 ASan 报告
+│   ├── 02-report-anatomy.md    # 逐字段解读一份 ASan 报告
+│   └── 03-measured-results.md  # CI 上的实测结果（含两个"假复现"的排查）
 ├── .github/workflows/asan.yml  # CI：ubuntu 上自动编译运行并上传报告
 ├── Dockerfile
 └── Makefile
@@ -85,6 +86,8 @@ previously allocated by thread T0 here:
 ```
 
 三个栈帧分别对应"**现在读在哪**（29 行）""**谁释放的**（26 行）""**谁分配的**（17 行）"——这是 ASan 相比 `SIGSEGV` 最直接的收益：崩溃点与根因点被同时给出。逐字段说明见 [`docs/02-report-anatomy.md`](docs/02-report-anatomy.md)。
+
+本项目在 GitHub Actions 上实测 7/7 命中，真实日志与两个"假复现"的排查过程见 [`docs/03-measured-results.md`](docs/03-measured-results.md)。
 
 ## 5. 机制速览
 
