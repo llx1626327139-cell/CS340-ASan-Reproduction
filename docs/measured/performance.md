@@ -10,7 +10,7 @@ expected values. The raw numbers of every run are in `docs/measured/raw_runs.tsv
 - Kernel: `7.0.0-1019-azure`
 - Compiler: `gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0`
 - Runs: 5 per configuration, reported as mean and standard deviation (sample, n-1)
-- commit: `f59681c`
+- commit: `dca1e79`
 
 Configurations: **base** = uninstrumented baseline; **asan_default** = default ASan
 settings; **asan_paper** = ASan with the measurement settings of paper section 4

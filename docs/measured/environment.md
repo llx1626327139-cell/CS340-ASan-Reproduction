@@ -56,7 +56,7 @@ is repeated five times and the median is reported. Memory figures come from
 ## Code version
 
 ```
-commit  = f59681ceb20aa4e6ee09cb42cc1538cf0756286e
+commit  = dca1e79852ecad7be90f1075aaac6bc0650eb79d
 branch  = main
 subject = 1240001636 陈禹成 (Chen Yucheng): feat: lengthen benchmark workloads to hundreds of ms and add figure generation
 workdir = /home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction

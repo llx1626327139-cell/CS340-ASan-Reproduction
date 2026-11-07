@@ -44,7 +44,7 @@ Raw evidence for each claim:
 | Item | Value |
 | --- | --- |
 | Starting code | The `main` branch of this repository, `llx1626327139-cell/CS340-ASan-Reproduction` |
-| Commit the experiments ran on | `086aca1` (the last experiment commit before this report was added) |
+| Commit the experiments ran on | `b2d677c` (the last experiment commit before this report was added) |
 | Tool under test | `libasan` shipped with GCC 15.2.0 (the GCC port of upstream LLVM compiler-rt); case 07 uses Clang 21.1.8 |
 | Reproduction entry points | `scripts/run_all.sh` (detection) / `bench/run_bench.sh` (C1, C2, C4) / `scripts/exp_quarantine.sh` (C6) |
 | CI record | GitHub Actions `asan-reproduction`, re-run on every push, artefacts `asan-reports` and `measured-docs` |

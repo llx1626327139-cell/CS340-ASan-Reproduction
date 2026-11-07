@@ -18,7 +18,7 @@ produces an uninformative empty result.
 - 3 runs per step, reported as mean and standard deviation (sample, n-1)
 - Held fixed: same machine, same `bench.c`, gcc -O2, `quarantine_size_mb=0`, `malloc_context_size=0`
 - Only varying factor: `ASAN_OPTIONS=redzone=<N>`
-- commit: `f59681c`
+- commit: `dca1e79`
 
 ## Table: `retained_heap`
 

@@ -5,7 +5,7 @@ The raw logs are committed under [`measured/logs/`](measured/logs/) and are also
 attached as an artefact to the corresponding workflow run.
 
 - Environment: Ubuntu (`ubuntu-latest` runner), GCC 15.2.0, case 07 built with Clang
-- Most recent run: `d0b008f` (workflow `asan-reproduction`, run #2)
+- Most recent run: `6a7e845` (workflow `asan-reproduction`, run #2)
 - Reproduction command: `make && bash scripts/run_all.sh`
 
 ## Summary

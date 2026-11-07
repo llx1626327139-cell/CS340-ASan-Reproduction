@@ -9,7 +9,7 @@ Program under test: `src/01_heap_use_after_free.c` (malloc(16) -> free -> read
 `buf[2]`). A 16-byte object is exactly the size an allocator reuses at once.
 
 - Run time (UTC): `2026-11-07 05:22:39`
-- commit: `f59681c`
+- commit: `dca1e79`
 
 | quarantine | Exit code | Reported | Error class |
 | --- | --- | --- | --- |
