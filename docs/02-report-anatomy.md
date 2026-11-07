@@ -1,6 +1,7 @@
-# 02 · 怎么读一份 ASan 报告
+# 02 - How to read an ASan report
 
-以用例 01（`heap-use-after-free`）为例，一次典型输出长这样（地址与行号每次不同）：
+Taking case 01 (`heap-use-after-free`) as an example, a typical output looks like
+this (addresses and line numbers differ every run):
 
 ```text
 =================================================================
@@ -35,41 +36,50 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
   Global redzone:        f9
 ```
 
-逐段拆解：
+Field by field:
 
-| 字段 | 含义 | 复现时该看什么 |
+| Field | Meaning | What to check during reproduction |
 | --- | --- | --- |
-| `ERROR: AddressSanitizer: heap-use-after-free` | 错误类别 | 与预期用例的"错误类型"是否一致 |
-| `READ/WRITE of size N` | 出事指令的宽度 | 能反推是哪一行赋值/读取 |
-| `#0 … in main … file:line` | 出错时的调用栈 | 第一个用户栈帧就是现场 |
-| `is located … inside of N-byte region` | 被访问地址落在哪块内存的哪个偏移 | 判断是"块内越界"还是"块外访问" |
-| `freed by thread` / `previously allocated by` | 释放栈 / 分配栈 | **定位生命周期错误的关键**，ASan 独有 |
-| `SUMMARY: …` | 一行结论 | CI 里通常只 grep 这一行 |
-| `Shadow bytes` / `legend` | 影子内存原始字节与图例 | 和 `docs/01` 里的影子值表对照 |
+| `ERROR: AddressSanitizer: heap-use-after-free` | Error class | Whether it matches the expected error class of the case |
+| `READ/WRITE of size N` | Width of the faulting instruction | Lets you work back to the assignment or read |
+| `#0 ... in main ... file:line` | Call stack at the fault | The first user frame is the scene of the fault |
+| `is located ... inside of N-byte region` | Which block and which offset the address falls in | Tells an in-block overflow from an out-of-block access |
+| `freed by thread` / `previously allocated by` | Free stack / allocation stack | **The key to lifetime bugs**, and unique to ASan |
+| `SUMMARY: ...` | One-line verdict | In CI this is usually the only line that is grepped |
+| `Shadow bytes` / `legend` | Raw shadow bytes and the legend | Cross-check against the shadow value table in `docs/01` |
 
-## 不同用例的报告差异
+## How reports differ between cases
 
-- **heap-buffer-overflow**：会写 `0 bytes to the right of 40-byte region`，说明越界刚好越过右边界 0 字节。
-- **stack-buffer-overflow**：会多出一张栈帧布局图，形如
+- **heap-buffer-overflow**: it says `0 bytes to the right of 40-byte region`,
+  meaning the overflow passes the right boundary by exactly 0 bytes.
+- **stack-buffer-overflow**: an extra stack frame layout diagram appears, of the form
   ```text
   [32, 48) 'arr' (line 19) <== Memory access at offset 48 overflows this variable
   ```
-  这是栈插桩提供的信息，堆错误没有。
-- **double-free**：开头是 `attempting double-free on 0x… in thread T0`，并且有 `freed by thread T0 here:` 指向**第一次** `free` 的位置。
-- **memory-leak**：完全没有 `ERROR:` 前缀，而是 `ERROR: LeakSanitizer: detected memory leaks` + 逐条 `Direct leak of N byte(s) in M object(s) allocated from:`。
-- **stack-use-after-return**：类别为 `stack-use-after-return`，前缀是 `READ/WRITE of size 4`，且报告会指出变量属于哪个已返回的函数；如果报告变成 `stack-buffer-overflow`，说明漏设了 `detect_stack_use_after_return=1`。
+  This information comes from stack instrumentation; heap errors have no equivalent.
+- **double-free**: it starts with `attempting double-free on 0x... in thread T0` and
+  carries a `freed by thread T0 here:` stack pointing at the **first** `free`.
+- **memory-leak**: there is no `ERROR:` prefix at all; instead it is
+  `ERROR: LeakSanitizer: detected memory leaks` followed by one
+  `Direct leak of N byte(s) in M object(s) allocated from:` block per leak.
+- **stack-use-after-return**: the class is `stack-use-after-return`, the prefix is
+  `READ/WRITE of size 4`, and the report names the function that has already
+  returned. If the class shows up as `stack-buffer-overflow` instead, then
+  `detect_stack_use_after_return=1` was not set.
 
-## 常用调参
+## Useful settings
 
 ```bash
-# 打印更详细的分配/释放信息
+# print more detailed allocation/free information
 ASAN_OPTIONS=verbosity=1 ./build/01_heap_use_after_free
 
-# 崩溃后立即 abort，便于挂调试器
+# abort immediately on error, convenient under a debugger
 ASAN_OPTIONS=abort_on_error=1 ./build/01_heap_use_after_free
 
-# 关闭隔离区，观察"释放后立刻复用"时错误如何变得不可见
+# disable the quarantine and watch how the error becomes invisible once memory is reused at once
 ASAN_OPTIONS=quarantine_size_mb=0 ./build/01_heap_use_after_free
 ```
 
-最后一条值得单独做实验：**关掉 quarantine 后，用例 01 往往不再报错**。这正好反证了隔离区对 `use-after-free` 可检出性的作用。
+The last one deserves an experiment of its own: **with the quarantine off, case 01
+often stops reporting**. That is direct evidence for the role the quarantine plays
+in making `use-after-free` detectable.
