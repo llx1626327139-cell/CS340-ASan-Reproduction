@@ -25,7 +25,10 @@ jobs:
           make check-env
           uname -a
 
-      - name: 构建
+      - name: 采集运行环境（硬件 / OS / 内核 / 编译器 / 设置）
+        run: bash scripts/env_report.sh
+
+      - name: 构建用例
         run: make
 
       - name: 运行用例（预期全部崩溃，因此允许非零退出）
@@ -34,9 +37,24 @@ jobs:
       - name: 把报告回显到日志
         run: cat reports/summary.md
 
+      - name: 测量运行时间与内存开销（复现 Figure 2 / Table 1）
+        run: bash bench/run_bench.sh
+
+      - name: 回显开销结果与环境
+        run: |
+          cat docs/measured/performance.md
+          cat docs/measured/environment.md
+
       - name: 上传报告产物
         uses: actions/upload-artifact@v4
         with:
           name: asan-reports
           path: reports/
+          if-no-files-found: warn
+
+      - name: 上传环境与开销结果
+        uses: actions/upload-artifact@v4
+        with:
+          name: measured-docs
+          path: docs/measured/
           if-no-files-found: warn
