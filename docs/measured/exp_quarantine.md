@@ -1,36 +1,43 @@
-# 实验：隔离区大小对 use-after-free 可检出性的影响
+# Experiment: effect of the quarantine size on use-after-free detectability
 
-对应论文 §3.5（False Negatives）与 §4.3（Tuning Accuracy And Resource Usage）：
+Corresponds to paper section 3.5 (False Negatives) and section 4.3 (Tuning Accuracy
+And Resource Usage):
 
 > Quarantine size (default: 256MB). This value controls the ability to find heap-use-after-free bugs.
 
-被测程序：`src/01_heap_use_after_free.c`（malloc(16) → free → 再读 `buf[2]`）。
-16 字节小对象属于最容易被分配器立刻复用的尺寸。
+Program under test: `src/01_heap_use_after_free.c` (malloc(16) -> free -> read
+`buf[2]`). A 16-byte object is exactly the size an allocator reuses at once.
 
-- 运行时间（UTC）：`2026-11-07 05:22:39`
-- commit：`f59681c`
+- Run time (UTC): `2026-11-07 05:22:39`
+- commit: `f59681c`
 
-| quarantine | 退出码 | 是否报错 | 报告类别 |
+| quarantine | Exit code | Reported | Error class |
 | --- | --- | --- | --- |
-| 256 MB（默认） | 1 | 是（`heap-use-after-free`） | `heap-use-after-free` |
-| 0 MB | 1 | 是（`heap-buffer-overflow`） | `heap-buffer-overflow` |
+| 256 MB (default) | 1 | yes (`heap-use-after-free`) | `heap-use-after-free` |
+| 0 MB | 1 | yes (`heap-buffer-overflow`) | `heap-buffer-overflow` |
 
-## 实测结论
+## Measured conclusion
 
-关掉隔离区后程序**仍然被杀掉**，但报告类别从 `heap-use-after-free` 变成了 `heap-buffer-overflow`。
-也就是说，这条访问并没有被放过，而是被判成了另一种错误。
+With the quarantine disabled the program **is still killed**, but the reported class
+changes from `heap-use-after-free` to `heap-buffer-overflow`. In other words the
+access is not let through; it is classified as a different error.
 
-最可能的原因（推断，未经源码级验证）：`quarantine_size_mb=0` 时 free 立即把
-该块交还 ASan 分配器，整块用户区被重新标记为红区（影子值 `0xFA/0xFB`），
-而不是保留为"已释放"标记（`0xFD`）。于是同一次访问在检查时落入红区分支，
-被归为 `heap-buffer-overflow`。
+The most likely reason (inferred, not verified at source level): with
+`quarantine_size_mb=0` the free returns the block to the ASan allocator at once, so
+the whole user area is re-marked as a redzone (shadow `0xFA/0xFB`) instead of keeping
+the "freed" marker (`0xFD`). The same access therefore falls into the redzone branch
+during the check and is reported as `heap-buffer-overflow`.
 
-**因此这条实验只支持论文主张的一半**：隔离区确实改变了检测结果（类别改变），
-但在本微基准上并未导致漏报。要观察到真正的漏报，需要释放后紧接着分配一个
-同尺寸对象把该内存复用——这属于本实验未覆盖的场景。
+**This experiment therefore supports only half of the paper's claim**: the quarantine
+does change the detection result (the class changes), but on this microbenchmark it
+does not produce a false negative. Observing a real false negative would require
+allocating an object of the same size immediately after the free so that the memory is
+reused - a scenario this experiment does not cover.
 
-## 为什么这条实验值得做
+## Why this experiment is worth running
 
-论文在测性能时把 quarantine 设为 0、在找 bug 时用默认 256MB —— 同一个工具、
-同一份代码，只改一个参数，可检出性就可能变化。这正是"影响结果的设置"里必须
-记录的一项，也是偏差表中 `quarantine` 一行需要给出理由的原因。
+The paper sets the quarantine to 0 when measuring performance and keeps the default
+256 MB when hunting for bugs - same tool, same code, one parameter changed, and
+detectability can change with it. That is exactly the kind of "setting that affects
+the results" which has to be recorded, and the reason the `quarantine` row in the
+deviation table needs a justification.
