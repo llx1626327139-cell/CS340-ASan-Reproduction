@@ -24,7 +24,7 @@ RAW="$ROOT_DIR/docs/measured/ext_raw.tsv"
 REPEAT="${REPEAT:-3}"
 
 REDZONES="16 32 64 128 256 512 1024 2048"
-WORKLOADS="malloc_heavy access_heavy"
+WORKLOADS="retained_heap"
 
 if [ ! -x "$BIN" ] || [ ! -x "$BASE_BIN" ]; then
     echo "错误：先执行 bash bench/run_bench.sh 生成 build/bench_asan 与 bench_base" >&2
@@ -67,6 +67,11 @@ cpu_model=$(lscpu 2>/dev/null | grep -m1 'Model name' | cut -d: -f2- | sed 's/^ 
     echo "论文 §4.3 只定性指出更大的红区 \`may lead to significant slowdown and increased"
     echo "memory usage\`，但 §4 的性能测量固定在 32 字节，没有给出 redzone 与开销的量化关系。"
     echo "本实验把 redzone 作为唯一变化因素，量化这条曲线。"
+    echo
+    echo "负载选择：\`retained_heap\` 同时持有 20 万个 48 字节对象。第一版实验用的是"
+    echo "\`malloc_heavy\`（分配后立刻释放），实测 redzone 从 16 到 2048 字节几乎没有任何影响，"
+    echo "因为瞬时存活对象太少、红区占用不会累积。这说明**负载必须能放大被测量的因素**，"
+    echo "否则实验只会得到一个无信息的空结论。"
     echo
     echo "- 生成时间（UTC）：\`$(date -u '+%Y-%m-%d %H:%M:%S')\`"
     echo "- CPU：\`${cpu_model:-?}\`；内核 \`$(uname -r)\`"

@@ -126,6 +126,37 @@ static unsigned long work_mixed(int iters)
     return sum;
 }
 
+/* 持续持有大量小对象：红区占用会随存活对象数线性累积，
+   用于放大 redzone 对内存占用的影响（瞬时存活对象少的负载对此不敏感）。 */
+static unsigned long work_retained_heap(int nblocks)
+{
+    const size_t block = 48;
+    unsigned char **slots = malloc(sizeof(unsigned char *) * (size_t)nblocks);
+    if (slots == NULL) {
+        return 0;
+    }
+    unsigned long sum = 0;
+    int live = 0;
+    for (int i = 0; i < nblocks; ++i) {
+        unsigned char *p = malloc(block);
+        if (p == NULL) {
+            break;
+        }
+        p[0] = (unsigned char)i;
+        p[block - 1] = (unsigned char)(i >> 3);
+        sum += p[0] + p[block - 1];
+        slots[live++] = p;
+    }
+    for (int i = 0; i < live; ++i) {
+        sum += slots[i][1];
+    }
+    for (int i = 0; i < live; ++i) {
+        free(slots[i]);
+    }
+    free(slots);
+    return sum;
+}
+
 int main(int argc, char **argv)
 {
     const char *mode = (argc > 1) ? argv[1] : "mixed";
@@ -140,12 +171,16 @@ int main(int argc, char **argv)
         t0 = now_ms();
         checksum = work_access_heavy(20000000);
         t1 = now_ms();
+    } else if (strcmp(mode, "retained_heap") == 0) {
+        t0 = now_ms();
+        checksum = work_retained_heap(200000);
+        t1 = now_ms();
     } else if (strcmp(mode, "mixed") == 0) {
         t0 = now_ms();
         checksum = work_mixed(0);
         t1 = now_ms();
     } else {
-        fprintf(stderr, "usage: %s [malloc_heavy|access_heavy|mixed]\n", argv[0]);
+        fprintf(stderr, "usage: %s [malloc_heavy|access_heavy|retained_heap|mixed]\n", argv[0]);
         return 2;
     }
 
