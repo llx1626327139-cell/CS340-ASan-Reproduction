@@ -34,6 +34,11 @@ mkdir -p "$BIN_DIR" "$(dirname "$OUT")"
 $CC $CFLAGS_BASE bench/bench.c -o "$BIN_DIR/bench_base" || exit 1
 $CC $CFLAGS_ASAN bench/bench.c -o "$BIN_DIR/bench_asan" || exit 1
 
+# 二进制体积（对应论文 §4 正文的 1.5~3.2x、平均 2.5x）
+sz_base=$(stat -c%s "$BIN_DIR/bench_base" 2>/dev/null || echo 0)
+sz_asan=$(stat -c%s "$BIN_DIR/bench_asan" 2>/dev/null || echo 0)
+sz_ratio=$(awk -v a="$sz_asan" -v b="$sz_base" 'BEGIN{printf "%.2f", (b>0)?a/b:0}')
+
 median() { sort -n | awk '{a[NR]=$1} END {print (NR%2) ? a[(NR+1)/2] : (a[NR/2]+a[NR/2+1])/2}'; }
 
 # measure <bin> <mode> [ASAN_OPTIONS]
@@ -106,6 +111,15 @@ done
     echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
     printf '%s' "$MEM_ROWS"
     echo
+    echo "## 二进制体积"
+    echo
+    echo "对应论文 §4 正文：SPEC CPU2006 上体积膨胀 1.5x~3.2x，平均 2.5x。"
+    echo
+    echo "| 构建 | 文件 | 字节 | 倍率 |"
+    echo "| --- | --- | --- | --- |"
+    echo "| base | build/bench_base | $sz_base | 1.00x |"
+    echo "| asan | build/bench_asan | $sz_asan | **${sz_ratio}x** |"
+    echo
     echo "## 读法说明"
     echo
     echo "1. **为什么内存主指标用 VmHWM 而不是论文的 VmPeak**：ASan 的影子内存是"
@@ -113,7 +127,7 @@ done
     echo "   拿它算倍率毫无意义。论文 2012 年的 3.37x 反映的是真实驻留量级增长，"
     echo "   因此这里用 VmHWM 计算倍率。"
     echo "2. **两组 ASan 数字的差异主要来自隔离区**：\`quarantine=0\` 让 free 立即归还，"
-    echo "   而默认 256MB 会把 \\\`malloc_heavy\\\` 的倍率放大一个数量级。论文在测性能时"
+    echo "   而默认 256MB 会把 `malloc_heavy` 的倍率放大一个数量级。论文在测性能时"
     echo "   正是关掉隔离区的，所以 **asan_paper 这一列才是与论文可比的口径**。"
     echo "3. 负载是自造微基准，不是 SPEC CPU2006，绝对值不可与论文 73% / 3.37x 直接对比，"
     echo "   可对比的是量级与趋势。"

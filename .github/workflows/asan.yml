@@ -40,10 +40,14 @@ jobs:
       - name: 测量运行时间与内存开销（复现 Figure 2 / Table 1）
         run: bash bench/run_bench.sh
 
-      - name: 回显开销结果与环境
+      - name: 对照实验：隔离区大小对 UAF 可检出性的影响（复现 §3.5 / §4.3）
+        run: bash scripts/exp_quarantine.sh
+
+      - name: 回显开销与环境
         run: |
           cat docs/measured/performance.md
           cat docs/measured/environment.md
+          cat docs/measured/exp_quarantine.md
 
       - name: 上传报告产物
         uses: actions/upload-artifact@v4
