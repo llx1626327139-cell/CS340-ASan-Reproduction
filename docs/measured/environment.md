@@ -1,17 +1,17 @@
 # 运行环境
 
-采集时间（UTC）：`2026-11-07 04:57:40`
+采集时间（UTC）：`2026-11-07 05:21:01`
 
 ## 硬件
 
 ```
 Architecture:                            x86_64
 CPU(s):                                  4
-Model name:                              AMD EPYC 9V74 80-Core Processor
+Model name:                              AMD EPYC 7763 64-Core Processor
 Thread(s) per core:                      2
 Core(s) per socket:                      2
 Socket(s):                               1
-BogoMIPS:                                5192.26
+BogoMIPS:                                4890.86
 ```
 
 内存总量：`15.6 GB`
@@ -55,8 +55,8 @@ SANFLAGS     = <默认值，见 Makefile>
 ## 代码版本
 
 ```
-commit  = f3f5d888c89725796bdf95485b81bb72b8ba6787
+commit  = 5e6a9faff25ace6764df30cc3f466785f77624a3
 branch  = main
-subject = fix: 隔离区实验结论改为由实测结果生成
+subject = 1240001636 Chen Yucheng: 修正 Extension 负载设计，改为持续持有 20 万小对象
 workdir = /home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction
 ```

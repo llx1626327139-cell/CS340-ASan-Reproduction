@@ -107,7 +107,7 @@ static unsigned long work_mixed(int iters)
         return 0;
     }
     unsigned long sum = 0;
-    for (int round = 0; round < 20; ++round) {
+    for (int round = 0; round < 100; ++round) {
         for (int i = 0; i < (int)(cap / 4); ++i) {
             buf[i] = buf[i] + i;
         }
@@ -165,11 +165,11 @@ int main(int argc, char **argv)
 
     if (strcmp(mode, "malloc_heavy") == 0) {
         t0 = now_ms();
-        checksum = work_malloc_heavy(300000);
+        checksum = work_malloc_heavy(5000000);
         t1 = now_ms();
     } else if (strcmp(mode, "access_heavy") == 0) {
         t0 = now_ms();
-        checksum = work_access_heavy(20000000);
+        checksum = work_access_heavy(60000000);
         t1 = now_ms();
     } else if (strcmp(mode, "retained_heap") == 0) {
         t0 = now_ms();
