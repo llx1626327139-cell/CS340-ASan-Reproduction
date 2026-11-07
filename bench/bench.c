@@ -12,6 +12,10 @@
  * vmhwm（峰值常驻内存）比 vmpeak 更有意义：ASan 的影子内存是 MAP_NORESERVE
  * 的虚拟保留，会把 vmpeak 撑到 TB 级，无法用来对比真实内存开销。
  */
+/* -std=c11 是严格 ISO 模式，会隐藏 POSIX 的 clock_gettime 声明，
+   这里显式声明 POSIX.1-2008 特性宏。 */
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
