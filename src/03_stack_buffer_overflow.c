@@ -1,13 +1,15 @@
 /*
- * 03 - stack-buffer-overflow（栈缓冲区越界写）
+ * 03 - stack-buffer-overflow (stack buffer overflow, write)
  *
- * 错误形态：int arr[4] 之后写 arr[4]。
- * ASan 期望报告：ERROR: AddressSanitizer: stack-buffer-overflow
- *               并附带一份栈帧布局图，标出arr占用的地址区间与 redzone 位置
+ * Error shape: write to arr[4] after int arr[4].
+ * Expected ASan report: ERROR: AddressSanitizer: stack-buffer-overflow, together with a
+ *                       stack frame layout diagram marking the address range occupied
+ *                       by arr and the position of its redzone
  *
- * 原理要点：ASan 会在每个栈变量两侧插入 redzone（最小 32 字节，含对齐），
- * 并在函数序言/尾声里描述这些区间（通过 __asan_stack_malloc_N 与
- * llvm.lifetime 等元信息），因此能给出"越过哪个变量多少字节"。
+ * Mechanism: ASan inserts a redzone on both sides of every stack variable (at least 32
+ * bytes, alignment included) and describes those ranges in the function prologue and
+ * epilogue (through __asan_stack_malloc_N and metadata such as llvm.lifetime), so it
+ * can report "how many bytes past which variable".
  */
 #include "common.h"
 
@@ -17,12 +19,12 @@ int main(void)
 
     int arr[4];
 
-    /* i == 4 时越界写，落进 arr 上方的栈 redzone */
+    /* at i == 4 the write goes past the end, into the stack redzone above arr */
     for (int i = 0; i <= 4; ++i) {
         arr[i] = i * 3;
     }
 
     sink(arr[0] + arr[3]);
-    fprintf(stderr, "[demo] not intercepted?! (ASan 应该已经拦截)\n");
+    fprintf(stderr, "[demo] not intercepted?! (ASan should have caught this)\n");
     return 0;
 }

@@ -1,19 +1,23 @@
 /*
- * bench.c - 复现论文 Figure 2 / Table 1 的开销测量载体
+ * bench.c - the overhead measurement vehicle for Figure 2 / Table 1 of the paper
  *
- * 论文用 SPEC CPU2006，这里用三个微基准代替（偏差已记录在报告中）：
- *   malloc_heavy  频繁小块 malloc/free，对应论文里 perlbench / xalancbmk 的特征
- *   access_heavy  大量 1~2 字节随机访存，对应 ASan 插桩最吃亏的模式
- *   mixed         大块顺序访问 + 周期性分配，接近普通计算型负载
+ * The paper uses SPEC CPU2006; three microbenchmarks stand in for it here (the
+ * deviation is recorded in the report):
+ *   malloc_heavy  frequent small malloc/free, matching perlbench / xalancbmk
+ *   access_heavy  many 1-2 byte random accesses, the pattern ASan instrumentation
+ *                 handles worst
+ *   mixed         sequential large-block access plus periodic allocation, close to
+ *                 an ordinary compute-bound workload
  *
- * 输出一行机器可读结果：
+ * It prints one machine-readable line:
  *   RESULT mode=<m> time_ms=<x> vmpeak_kb=<x> vmhwm_kb=<x> vmstk_kb=<x> checksum=<x>
  *
- * vmhwm（峰值常驻内存）比 vmpeak 更有意义：ASan 的影子内存是 MAP_NORESERVE
- * 的虚拟保留，会把 vmpeak 撑到 TB 级，无法用来对比真实内存开销。
+ * vmhwm (peak resident memory) is more meaningful than vmpeak: ASan's shadow memory
+ * is a MAP_NORESERVE virtual reservation that pushes vmpeak into the terabytes, so
+ * it cannot be used to compare real memory overhead.
  */
-/* -std=c11 是严格 ISO 模式，会隐藏 POSIX 的 clock_gettime 声明，
-   这里显式声明 POSIX.1-2008 特性宏。 */
+/* -std=c11 is strict ISO mode and hides the POSIX clock_gettime declaration, so the
+   POSIX.1-2008 feature macro is defined explicitly here. */
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdint.h>
@@ -32,7 +36,7 @@ static uint64_t xrand(void)
     return g_state;
 }
 
-/* 从 /proc/self/status 取某个字段的数值（单位 KB） */
+/* Read a numeric field (in KB) from /proc/self/status */
 static long vm_field(const char *key)
 {
     FILE *f = fopen("/proc/self/status", "r");
@@ -59,7 +63,7 @@ static double now_ms(void)
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
 }
 
-/* 频繁小块分配：每轮 malloc -> 写 -> free */
+/* Frequent small allocations: malloc -> write -> free on every iteration */
 static unsigned long work_malloc_heavy(int iters)
 {
     unsigned long sum = 0;
@@ -77,7 +81,7 @@ static unsigned long work_malloc_heavy(int iters)
     return sum;
 }
 
-/* 大量单字节随机访存：8MB 缓冲区内随机读改写 */
+/* Many single-byte random accesses: random read-modify-write in an 8MB buffer */
 static unsigned long work_access_heavy(int iters)
 {
     const size_t cap = 8u << 20;
@@ -98,7 +102,7 @@ static unsigned long work_access_heavy(int iters)
     return sum;
 }
 
-/* 顺序大块访问 + 周期性分配 */
+/* Sequential large-block access plus periodic allocation */
 static unsigned long work_mixed(int iters)
 {
     const size_t cap = 4u << 20;
@@ -126,8 +130,9 @@ static unsigned long work_mixed(int iters)
     return sum;
 }
 
-/* 持续持有大量小对象：红区占用会随存活对象数线性累积，
-   用于放大 redzone 对内存占用的影响（瞬时存活对象少的负载对此不敏感）。 */
+/* Hold many small objects at once: redzone occupancy accumulates linearly with the
+   number of live objects, which amplifies the memory effect of the redzone (workloads
+   with few live objects at any instant are insensitive to it). */
 static unsigned long work_retained_heap(int nblocks)
 {
     const size_t block = 48;

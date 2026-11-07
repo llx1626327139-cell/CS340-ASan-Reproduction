@@ -1,13 +1,15 @@
 /*
- * 06 - memory-leak（内存泄漏，由 LeakSanitizer 负责）
+ * 06 - memory-leak (LeakSanitizer handles this one)
  *
- * 错误形态：malloc 出来的指针在作用域结束时丢失，程序正常退出。
- * ASan 期望报告：ERROR: LeakSanitizer: detected memory leaks
- *               Direct leak of 64 byte(s) ...
+ * Error shape: a malloc'ed pointer is lost when its scope ends, and the program exits
+ * normally.
+ * Expected ASan report: ERROR: LeakSanitizer: detected memory leaks
+ *                       Direct leak of 64 byte(s) ...
  *
- * 原理要点：LeakSanitizer 在 exit 时暂停进程，扫描所有内存
- * （栈、寄存器、全局段、TLS）做可达性分析，回收站里查不到的堆块即视为泄漏。
- * Linux/x86-64 默认开启；容器或特殊环境下需 ASAN_OPTIONS=detect_leaks=1。
+ * Mechanism: at exit LeakSanitizer suspends the process and scans all memory (stacks,
+ * registers, globals, TLS) for reachability; any heap block not found there counts as
+ * a leak. Enabled by default on Linux/x86-64; in containers or unusual environments it
+ * needs ASAN_OPTIONS=detect_leaks=1.
  */
 #include "common.h"
 
@@ -16,15 +18,15 @@ int main(void)
     DEMO_BEGIN("memory-leak");
 
     for (int i = 0; i < 3; ++i) {
-        char *p = (char *)malloc(64); /* 指针没有逃出本轮循环 */
+        char *p = (char *)malloc(64); /* the pointer never escapes this iteration */
         if (p == NULL) {
             return 1;
         }
         p[0] = (char)('a' + i);
-        sink(p[0]); /* 用掉它，防止编译器把 malloc 优化掉 */
-        /* 缺少 free(p)：退出时这 3 x 64 字节不可达 */
+        sink(p[0]); /* consume it so the malloc is not optimised away */
+        /* free(p) is missing: these 3 x 64 bytes are unreachable at exit */
     }
 
-    fprintf(stderr, "[demo] 程序正常退出，泄漏由 LeakSanitizer 在 exit 时报告\n");
+    fprintf(stderr, "[demo] exiting normally, the leak is reported by LeakSanitizer at exit\n");
     return 0;
 }
