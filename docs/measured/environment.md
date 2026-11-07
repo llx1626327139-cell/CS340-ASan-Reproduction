@@ -1,17 +1,17 @@
 # 运行环境
 
-采集时间（UTC）：`2026-11-07 05:21:01`
+采集时间（UTC）：`2026-11-07 05:22:24`
 
 ## 硬件
 
 ```
 Architecture:                            x86_64
 CPU(s):                                  4
-Model name:                              AMD EPYC 7763 64-Core Processor
+Model name:                              AMD EPYC 9V45 96-Core Processor
 Thread(s) per core:                      2
 Core(s) per socket:                      2
 Socket(s):                               1
-BogoMIPS:                                4890.86
+BogoMIPS:                                5192.19
 ```
 
 内存总量：`15.6 GB`
@@ -55,8 +55,8 @@ SANFLAGS     = <默认值，见 Makefile>
 ## 代码版本
 
 ```
-commit  = 5e6a9faff25ace6764df30cc3f466785f77624a3
+commit  = dba9ae64f6f7d20abd541958b73cfe4ac08a384f
 branch  = main
-subject = 1240001636 Chen Yucheng: 修正 Extension 负载设计，改为持续持有 20 万小对象
+subject = 1240001636 Chen Yucheng: 加长基准负载至数百毫秒量级，并加入图表生成
 workdir = /home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction
 ```
