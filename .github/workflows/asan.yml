@@ -14,9 +14,15 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: 安装 clang（用例 07 需要假栈机制，GCC 未实现）
+        run: |
+          if ! command -v clang >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq clang
+          fi
+
       - name: 打印工具链版本
         run: |
-          gcc --version | head -n 1
+          make check-env
           uname -a
 
       - name: 构建
