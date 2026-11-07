@@ -7,7 +7,7 @@
 | 项 | 值 |
 | --- | --- |
 | 仓库 | `llx1626327139-cell/CS340-ASan-Reproduction` |
-| 提交 | `eeb1e16`（修复 05/07 后的第二版） |
+| 提交 | `d0b008f`（修复 05/07 后的第二版） |
 | workflow | `asan-reproduction` run #2 |
 | 运行环境 | `ubuntu-latest`，GCC 15.2.0，用例 07 用 Clang |
 | 运行时间 | 2026-11-07 04:19:42 UTC |

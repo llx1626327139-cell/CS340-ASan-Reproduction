@@ -3,7 +3,7 @@
 本文记录在 GitHub Actions 上的**真实运行结果**，不是预期值。原始日志已入库在 [`measured/logs/`](measured/logs/)，同时作为 artifact 附在对应的 workflow run 上。
 
 - 运行环境：Ubuntu（`ubuntu-latest` runner）、GCC 15.2.0、用例 07 用 Clang 编译
-- 最近一次运行：`eeb1e16`（workflow `asan-reproduction`，run #2）
+- 最近一次运行：`d0b008f`（workflow `asan-reproduction`，run #2）
 - 复现命令：`make && bash scripts/run_all.sh`
 
 ## 汇总

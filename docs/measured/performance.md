@@ -9,7 +9,7 @@
 - 内核：`7.0.0-1019-azure`
 - 编译器：`gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0`
 - 运行次数：每配置 5 次，报告 mean ± stddev（样本标准差，n-1）
-- commit：`dba9ae6`
+- commit：`f59681c`
 
 配置：**base** = 不插桩基线；**asan_default** = 默认 ASan 参数；
 **asan_paper** = ASan + 论文 §4 的测量设置（`quarantine_size_mb=0:redzone=32:malloc_context_size=0`）。

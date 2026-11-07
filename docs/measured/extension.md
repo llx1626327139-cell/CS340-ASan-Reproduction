@@ -14,7 +14,7 @@ memory usage`，但 §4 的性能测量固定在 32 字节，没有给出 redzon
 - 每档 3 次，报告 mean ± stddev（样本标准差，n-1）
 - 固定项：同一机器、同一 `bench.c`、gcc -O2、`quarantine_size_mb=0`、`malloc_context_size=0`
 - 唯一变化项：`ASAN_OPTIONS=redzone=<N>`
-- commit：`dba9ae6`
+- commit：`f59681c`
 
 ## 表：`retained_heap`
 

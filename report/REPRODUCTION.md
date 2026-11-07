@@ -39,7 +39,7 @@
 | 项 | 值 |
 | --- | --- |
 | 起点代码 | 本仓库 `llx1626327139-cell/CS340-ASan-Reproduction` 的 `main` 分支 |
-| 实验执行时的 commit | `f3f5d88`（本报告提交前的最后一次实验提交） |
+| 实验执行时的 commit | `086aca1`（本报告提交前的最后一次实验提交） |
 | 被测工具 | GCC 15.2.0 自带 `libasan`（上游 LLVM compiler-rt 的 GCC 移植）；用例 07 用 Clang 21.1.8 |
 | 复现入口 | `scripts/run_all.sh`（检出能力）/ `bench/run_bench.sh`（C1、C2、C4）/ `scripts/exp_quarantine.sh`（C6） |
 | CI 记录 | GitHub Actions `asan-reproduction`，每次 push 自动重跑，产物 `asan-reports` 与 `measured-docs` |
