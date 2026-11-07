@@ -9,6 +9,12 @@
 
 ---
 
+## 0. 复现报告
+
+按论文复现要求撰写的报告在 [`report/REPRODUCTION.md`](report/REPRODUCTION.md)，包含被测 claims 与论文 Table/Figure 的对应、起点代码与 commit、运行环境、以及与论文的完整偏差表。
+
+---
+
 ## 1. 快速开始
 
 ```bash
@@ -60,6 +66,8 @@ gcc -std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address \
 │   ├── common.h            # volatile 汇聚点，防止错误访存被优化掉
 │   └── 0[1-7]_*.c
 ├── scripts/run_all.sh      # 批量运行 + 汇总表格
+├── report/REPRODUCTION.md  # 复现报告（claim 对照 / 环境 / 偏差表）
+├── bench/                  # 开销测量（Figure 2 / Table 1）
 ├── docs/
 │   ├── 01-asan-internals.md    # 影子内存 / 插桩 / 拦截器 原理
 │   ├── 02-report-anatomy.md    # 逐字段解读一份 ASan 报告
