@@ -1,0 +1,21 @@
+# --- 构建产物 ---
+build/
+obj/
+bin/
+*.o
+*.obj
+*.out
+
+# --- 运行报告（每次 make run 重新生成，不入库）---
+reports/
+
+# --- 编辑器 / 系统噪音 ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- 其他语言工具链 ---
+cmake-build-*/
+compile_commands.json
