@@ -1,0 +1,57 @@
+[demo] start: heap-use-after-free
+=================================================================
+==2249==ERROR: AddressSanitizer: heap-use-after-free on address 0x7579ddde0018 at pc 0x55b45c82f407 bp 0x7ffdbc580180 sp 0x7ffdbc580170
+READ of size 4 at 0x7579ddde0018 thread T0
+    #0 0x55b45c82f406 in main src/01_heap_use_after_free.c:29
+    #1 0x7959dea2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #2 0x7959dea2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x55b45c82f1a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/01_heap_use_after_free+0x11a4) (BuildId: d21ca3bfa822951768b5a283680b8c2d61906243)
+
+0x7579ddde0018 is located 8 bytes inside of 16-byte region [0x7579ddde0010,0x7579ddde0020)
+freed by thread T0 here:
+    #0 0x7959def28bcf in free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:51
+    #1 0x55b45c82f382 in main src/01_heap_use_after_free.c:26
+    #2 0x7959dea2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x7959dea2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x55b45c82f1a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/01_heap_use_after_free+0x11a4) (BuildId: d21ca3bfa822951768b5a283680b8c2d61906243)
+
+previously allocated by thread T0 here:
+    #0 0x7959def29ddf in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:67
+    #1 0x55b45c82f2be in main src/01_heap_use_after_free.c:17
+    #2 0x7959dea2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x7959dea2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x55b45c82f1a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/01_heap_use_after_free+0x11a4) (BuildId: d21ca3bfa822951768b5a283680b8c2d61906243)
+
+SUMMARY: AddressSanitizer: heap-use-after-free src/01_heap_use_after_free.c:29 in main
+Shadow bytes around the buggy address:
+  0x7579ddddfd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7579ddddfe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7579ddddfe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7579ddddff00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7579ddddff80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x7579ddde0000: fa fa fd[fd]fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7579ddde0080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7579ddde0100: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7579ddde0180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7579ddde0200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x7579ddde0280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==2249==ABORTING

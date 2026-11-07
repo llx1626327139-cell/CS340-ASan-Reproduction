@@ -1,0 +1,26 @@
+[demo] start: double-free
+=================================================================
+==2269==ERROR: AddressSanitizer: attempting double-free on 0x78f885fe0010 in thread T0:
+    #0 0x7cd887128bcf in free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:51
+    #1 0x56c425416346 in main src/05_double_free.c:35
+    #2 0x7cd886c2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x7cd886c2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x56c4254161a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/05_double_free+0x11a4) (BuildId: 7b19e092adbf7d87a6bfefc4f00434e63df94573)
+
+0x78f885fe0010 is located 0 bytes inside of 4-byte region [0x78f885fe0010,0x78f885fe0014)
+freed by thread T0 here:
+    #0 0x7cd887128bcf in free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:51
+    #1 0x56c42541633a in main src/05_double_free.c:34
+    #2 0x7cd886c2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x7cd886c2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x56c4254161a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/05_double_free+0x11a4) (BuildId: 7b19e092adbf7d87a6bfefc4f00434e63df94573)
+
+previously allocated by thread T0 here:
+    #0 0x7cd887129ddf in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:67
+    #1 0x56c4254162b9 in main src/05_double_free.c:26
+    #2 0x7cd886c2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x7cd886c2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x56c4254161a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/05_double_free+0x11a4) (BuildId: 7b19e092adbf7d87a6bfefc4f00434e63df94573)
+
+SUMMARY: AddressSanitizer: double-free src/05_double_free.c:35 in main
+==2269==ABORTING

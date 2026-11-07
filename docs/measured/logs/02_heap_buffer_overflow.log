@@ -1,0 +1,50 @@
+[demo] start: heap-buffer-overflow
+=================================================================
+==2254==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6f18a3fe0038 at pc 0x605c16190337 bp 0x7ffe77a1df70 sp 0x7ffe77a1df60
+WRITE of size 4 at 0x6f18a3fe0038 thread T0
+    #0 0x605c16190336 in main src/02_heap_buffer_overflow.c:24
+    #1 0x72d8a4c2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #2 0x72d8a4c2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x605c161901a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/02_heap_buffer_overflow+0x11a4) (BuildId: ed163559393fd2c83bdffe9575c116b85d69a0f7)
+
+0x6f18a3fe0038 is located 0 bytes after 40-byte region [0x6f18a3fe0010,0x6f18a3fe0038)
+allocated by thread T0 here:
+    #0 0x72d8a5129ddf in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:67
+    #1 0x605c161902cc in main src/02_heap_buffer_overflow.c:17
+    #2 0x72d8a4c2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x72d8a4c2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x605c161901a4 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/02_heap_buffer_overflow+0x11a4) (BuildId: ed163559393fd2c83bdffe9575c116b85d69a0f7)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow src/02_heap_buffer_overflow.c:24 in main
+Shadow bytes around the buggy address:
+  0x6f18a3fdfd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f18a3fdfe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f18a3fdfe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f18a3fdff00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f18a3fdff80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x6f18a3fe0000: fa fa 00 00 00 00 00[fa]fa fa fa fa fa fa fa fa
+  0x6f18a3fe0080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x6f18a3fe0100: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x6f18a3fe0180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x6f18a3fe0200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x6f18a3fe0280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==2254==ABORTING

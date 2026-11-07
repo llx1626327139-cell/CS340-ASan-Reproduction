@@ -1,0 +1,14 @@
+[demo] start: memory-leak
+[demo] 程序正常退出，泄漏由 LeakSanitizer 在 exit 时报告
+
+=================================================================
+==2274==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 192 byte(s) in 3 object(s) allocated from:
+    #0 0x71a9e4f29ddf in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:67
+    #1 0x5a315edbb296 in main src/06_memory_leak.c:19
+    #2 0x71a9e4a2a8c0  (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a8c0) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #3 0x71a9e4a2a9d7 in __libc_start_main (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a9d7) (BuildId: 4ec69afdf3da96ce7388640dcd27c6d0c1b256ef)
+    #4 0x5a315edbb164 in _start (/home/runner/work/CS340-ASan-Reproduction/CS340-ASan-Reproduction/build/06_memory_leak+0x1164) (BuildId: a49f6216437239050782667d6659037b3c6871bf)
+
+SUMMARY: AddressSanitizer: 192 byte(s) leaked in 3 allocation(s).

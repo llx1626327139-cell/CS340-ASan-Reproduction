@@ -63,7 +63,8 @@ gcc -std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address \
 ├── docs/
 │   ├── 01-asan-internals.md    # 影子内存 / 插桩 / 拦截器 原理
 │   ├── 02-report-anatomy.md    # 逐字段解读一份 ASan 报告
-│   └── 03-measured-results.md  # CI 上的实测结果（含两个"假复现"的排查）
+│   ├── 03-measured-results.md  # 实测结果分析（含两个"假复现"的排查）
+│   └── measured/logs/          # CI 原始日志（7 份完整 ASan 报告）
 ├── .github/workflows/asan.yml  # CI：ubuntu 上自动编译运行并上传报告
 ├── Dockerfile
 └── Makefile
