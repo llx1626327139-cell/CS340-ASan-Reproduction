@@ -7,60 +7,60 @@ on:
 
 jobs:
   detect:
-    name: 编译并运行全部 ASan 用例
+    name: Build and run every ASan case
     runs-on: ubuntu-latest
 
     steps:
-      - name: 检出代码
+      - name: Check out the repository
         uses: actions/checkout@v4
 
-      - name: 安装 clang（用例 07 需要假栈机制，GCC 未实现）
+      - name: Install clang (case 07 needs the fake stack, which GCC lacks)
         run: |
           if ! command -v clang >/dev/null 2>&1; then
             sudo apt-get update -qq && sudo apt-get install -y -qq clang
           fi
 
-      - name: 打印工具链版本
+      - name: Print toolchain versions
         run: |
           make check-env
           uname -a
 
-      - name: 采集运行环境（硬件 / OS / 内核 / 编译器 / 设置）
+      - name: Collect the runtime environment (hardware / OS / kernel / compiler / settings)
         run: bash scripts/env_report.sh
 
-      - name: 构建用例
+      - name: Build the cases
         run: make
 
-      - name: 运行用例（预期全部崩溃，因此允许非零退出）
+      - name: Run the cases (all are expected to crash, so a non-zero exit is fine)
         run: bash scripts/run_all.sh || true
 
-      - name: 把报告回显到日志
+      - name: Echo the report into the log
         run: cat reports/summary.md
 
-      - name: 测量运行时间与内存开销（复现 Figure 2 / Table 1）
+      - name: Measure runtime and memory overhead (reproduces Figure 2 / Table 1)
         run: bash bench/run_bench.sh
 
-      - name: Extension：红区大小对开销的影响（单因素扫描）
+      - name: Extension - effect of the redzone size on overhead (single-factor sweep)
         run: bash bench/ext_redzone.sh
 
-      - name: 对照实验：隔离区大小对 UAF 可检出性的影响（复现 §3.5 / §4.3）
+      - name: Control experiment - effect of the quarantine size on UAF detectability (reproduces 3.5 / 4.3)
         run: bash scripts/exp_quarantine.sh
 
-      - name: 回显开销与环境
+      - name: Echo the overhead and environment results
         run: |
           cat docs/measured/performance.md
           cat docs/measured/extension.md
           cat docs/measured/environment.md
           cat docs/measured/exp_quarantine.md
 
-      - name: 上传报告产物
+      - name: Upload the report artefacts
         uses: actions/upload-artifact@v4
         with:
           name: asan-reports
           path: reports/
           if-no-files-found: warn
 
-      - name: 上传环境与开销结果
+      - name: Upload the environment and overhead results
         uses: actions/upload-artifact@v4
         with:
           name: measured-docs

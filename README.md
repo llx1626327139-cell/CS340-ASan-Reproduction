@@ -1,42 +1,53 @@
-# CS340 · AddressSanitizer 复现
+# CS340 - AddressSanitizer Reproduction
 
-围绕 **AddressSanitizer** 做的一次"原理 + 检测能力"复现实验：用 7 个最小可复现用例覆盖 ASan 能抓的 7 类内存错误，逐个对照**影子内存、编译期插桩、运行期拦截器**三层机制，解释报告里每一行从哪里来。
+A reproduction of **AddressSanitizer** along two axes, mechanism and detection
+capability: seven minimal cases cover the seven classes of memory error that ASan
+can catch, and each case is mapped back to the three layers of the tool - **shadow
+memory, compile-time instrumentation and runtime interceptors** - to explain where
+every line of the report comes from.
 
-> 参考论文：Serebryany K., Bruening D., Potapenko A., Vyukov D.
+> Reference paper: Serebryany K., Bruening D., Potapenko A., Vyukov D.
 > *AddressSanitizer: A Fast Address Sanity Checker.* USENIX ATC 2012.
 >
-> 工具版本：GCC 13 / Clang 18 及以上（`-fsanitize=address`），Linux x86-64。
+> Toolchain: GCC 13 / Clang 18 or newer (`-fsanitize=address`), Linux x86-64.
 
 ---
 
-## 0. 复现报告
+## 0. Reproduction report
 
-按论文复现要求撰写的报告在 [`report/REPRODUCTION.md`](report/REPRODUCTION.md)，包含被测 claims 与论文 Table/Figure 的对应、起点代码与 commit、运行环境、以及与论文的完整偏差表。
+The report written against the replication requirements lives in
+[`report/REPRODUCTION.md`](report/REPRODUCTION.md). It maps each tested claim to a
+table or figure in the paper, records the starting code and commit, the runtime
+environment, and a complete table of deviations from the paper.
 
 ---
 
-## 1. 快速开始
+## 1. Quick start
 
 ```bash
 git clone https://github.com/llx1626327139-cell/CS340-ASan-Reproduction.git
 cd CS340-ASan-Reproduction
-make            # 编译，产物在 build/
-make run        # 依次运行，报告落到 reports/
+make            # build, artefacts land in build/
+make run        # run every case in turn, reports land in reports/
 ```
 
-`make run` 会为每个用例单独生成 `reports/<用例名>.log`，并汇总成 `reports/summary.md`。
+`make run` writes one `reports/<case>.log` per case and aggregates them into
+`reports/summary.md`.
 
-不想装工具链的话，用容器一条命令跑完：
+If you would rather not install a toolchain, the container does everything in one
+command:
 
 ```bash
 docker build -t cs340-asan .
 docker run --rm cs340-asan
 ```
 
-> **Windows 提示**：MinGW-w64 工具链不自带 `libasan`，本机直接 `make` 会在链接阶段失败。
-> 请在以下三种方式中选一种：WSL2、Docker（见上）、GitHub Actions（`.github/workflows/asan.yml` 已配好，push 即自动跑）。
+> **Windows note**: the MinGW-w64 toolchain ships no `libasan`, so a plain `make`
+> on this machine fails at link time. Pick one of three alternatives: WSL2, Docker
+> (see above), or GitHub Actions (`.github/workflows/asan.yml` already runs on
+> every push).
 
-单个用例也可以手工编译，便于挂调试器：
+A single case can also be built by hand, which is convenient under a debugger:
 
 ```bash
 gcc -std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address \
@@ -44,43 +55,46 @@ gcc -std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address \
 ./build/01_heap_use_after_free
 ```
 
-## 2. 用例清单
+## 2. Case list
 
-| # | 源文件 | 错误类型 | 预期 ASan 结论 |
+| # | Source file | Error class | Expected ASan verdict |
 | --- | --- | --- | --- |
-| 01 | `src/01_heap_use_after_free.c` | 释放后使用（堆） | `heap-use-after-free`，`READ of size 4` |
-| 02 | `src/02_heap_buffer_overflow.c` | 堆缓冲区越界写 | `heap-buffer-overflow`，`0 bytes to the right of 40-byte region` |
-| 03 | `src/03_stack_buffer_overflow.c` | 栈缓冲区越界写 | `stack-buffer-overflow` + 栈帧布局图 |
-| 04 | `src/04_global_buffer_overflow.c` | 全局数组越界读 | `global-buffer-overflow`，点名变量 `g_table` |
-| 05 | `src/05_double_free.c` | 重复释放 | `attempting double-free` + 第一次释放栈 |
-| 06 | `src/06_memory_leak.c` | 内存泄漏 | `LeakSanitizer: detected memory leaks`，`Direct leak of 64 byte(s)` |
-| 07 | `src/07_stack_use_after_return.c` | 返回栈上地址后使用 | `stack-use-after-return`（需 clang + `detect_stack_use_after_return=1`） |
+| 01 | `src/01_heap_use_after_free.c` | Heap use after free | `heap-use-after-free`, `READ of size 4` |
+| 02 | `src/02_heap_buffer_overflow.c` | Heap buffer overflow (write) | `heap-buffer-overflow`, `0 bytes to the right of 40-byte region` |
+| 03 | `src/03_stack_buffer_overflow.c` | Stack buffer overflow (write) | `stack-buffer-overflow` plus a stack frame layout diagram |
+| 04 | `src/04_global_buffer_overflow.c` | Global array overflow (read) | `global-buffer-overflow`, names the variable `g_table` |
+| 05 | `src/05_double_free.c` | Double free | `attempting double-free` plus the first free stack |
+| 06 | `src/06_memory_leak.c` | Memory leak | `LeakSanitizer: detected memory leaks`, `Direct leak of 64 byte(s)` |
+| 07 | `src/07_stack_use_after_return.c` | Use of a stack address after return | `stack-use-after-return` (needs clang and `detect_stack_use_after_return=1`) |
 
-每个用例都只有一个 `main`，错误点用注释标在同一行附近，方便对着报告里的 `#0` 栈帧回看。
+Every case has a single `main`, and the faulty access is marked with a comment on
+the neighbouring line so it can be cross-checked against the `#0` frame in the
+report.
 
-## 3. 目录结构
+## 3. Directory layout
 
 ```text
 .
-├── src/                    # 7 个独立用例 + 公共头
-│   ├── common.h            # volatile 汇聚点，防止错误访存被优化掉
+├── src/                    # seven self-contained cases plus a shared header
+│   ├── common.h            # volatile sink, keeps faulty accesses from being optimised away
 │   └── 0[1-7]_*.c
-├── scripts/run_all.sh      # 批量运行 + 汇总表格
-├── report/REPRODUCTION.md  # 复现报告（claim 对照 / 环境 / 偏差表）
-├── bench/                  # 开销测量（Figure 2 / Table 1）
+├── scripts/run_all.sh      # batch execution and summary table
+├── report/REPRODUCTION.md  # reproduction report (claim mapping / environment / deviations)
+├── bench/                  # overhead measurement (Figure 2 / Table 1)
 ├── docs/
-│   ├── 01-asan-internals.md    # 影子内存 / 插桩 / 拦截器 原理
-│   ├── 02-report-anatomy.md    # 逐字段解读一份 ASan 报告
-│   ├── 03-measured-results.md  # 实测结果分析（含两个"假复现"的排查）
-│   └── measured/logs/          # CI 原始日志（7 份完整 ASan 报告）
-├── .github/workflows/asan.yml  # CI：ubuntu 上自动编译运行并上传报告
+│   ├── 01-asan-internals.md    # shadow memory / instrumentation / interceptors
+│   ├── 02-report-anatomy.md    # field-by-field reading of an ASan report
+│   ├── 03-measured-results.md  # measured results, including two "false reproductions"
+│   └── measured/logs/          # raw CI logs (seven complete ASan reports)
+├── .github/workflows/asan.yml  # CI: build and run on ubuntu, upload the reports
 ├── Dockerfile
 └── Makefile
 ```
 
-## 4. 报告长什么样
+## 4. What a report looks like
 
-用例 01 的典型输出（节选，地址与行号随环境变化）：
+Typical output for case 01 (excerpt; addresses and line numbers vary by
+environment):
 
 ```text
 ==4127==ERROR: AddressSanitizer: heap-use-after-free on address 0x602000000018
@@ -94,62 +108,96 @@ previously allocated by thread T0 here:
     #1 0x55f3a1c8b22b in main src/01_heap_use_after_free.c:17
 ```
 
-三个栈帧分别对应"**现在读在哪**（29 行）""**谁释放的**（26 行）""**谁分配的**（17 行）"——这是 ASan 相比 `SIGSEGV` 最直接的收益：崩溃点与根因点被同时给出。逐字段说明见 [`docs/02-report-anatomy.md`](docs/02-report-anatomy.md)。
+The three stacks answer three different questions: **where the read happens now**
+(line 29), **who freed it** (line 26) and **who allocated it** (line 17). That is
+the most direct gain over a plain `SIGSEGV`: the crash site and the root cause are
+reported together. A field-by-field walkthrough is in
+[`docs/02-report-anatomy.md`](docs/02-report-anatomy.md).
 
-本项目在 GitHub Actions 上实测 7/7 命中，真实日志与两个"假复现"的排查过程见 [`docs/03-measured-results.md`](docs/03-measured-results.md)。
+This project detects 7 of 7 cases on GitHub Actions; the real logs and the analysis
+of two "false reproductions" are in
+[`docs/03-measured-results.md`](docs/03-measured-results.md).
 
-## 5. 机制速览
+## 5. Mechanism at a glance
 
-ASan 靠三层配合工作，详见 [`docs/01-asan-internals.md`](docs/01-asan-internals.md)：
+ASan works through three cooperating layers, documented in
+[`docs/01-asan-internals.md`](docs/01-asan-internals.md):
 
-1. **影子内存**：每 8 字节程序内存映射 1 字节影子，`shadow = (addr >> 3) + 0x7fff8000`。影子值 `0` 表示 8 字节全可访问，`1..7` 表示只有前 n 字节可访问，负数表示毒化区（`0xFA/0xFB` 堆红区、`0xFD` 已释放、`0xF1/0xF3` 栈红区、`0xF5` 已返回栈帧、`0xF9` 全局红区）。
-2. **编译期插桩**：每条 load/store 前插入影子检查，快路径内联、慢路径跳到 `__asan_report_loadN/storeN`；同时在分配块两侧铺红区。
-3. **运行期拦截器**：接管 `malloc/free/memcpy` 等，记录分配/释放栈，并把释放的内存放进 **quarantine（默认 256 MB）** 而不是立刻复用——这正是 `use-after-free` 能被稳定检测的前提。
+1. **Shadow memory**: every 8 bytes of application memory map to one shadow byte,
+   `shadow = (addr >> 3) + 0x7fff8000`. A shadow value of `0` means all eight bytes
+   are addressable, `1..7` means only the first n bytes are, and negative values
+   mark poisoned regions (`0xFA/0xFB` heap redzones, `0xFD` freed, `0xF1/0xF3`
+   stack redzones, `0xF5` returned stack frames, `0xF9` global redzones).
+2. **Compile-time instrumentation**: a shadow check is inserted before every load
+   and store. The fast path is inlined; the slow path jumps to
+   `__asan_report_loadN/storeN`. Redzones are laid down on both sides of each
+   allocation.
+3. **Runtime interceptors**: `malloc/free/memcpy` and friends are intercepted so
+   that allocation and free stacks can be recorded. Freed memory goes into a
+   **quarantine (256 MB by default)** instead of being reused immediately, which is
+   exactly what makes `use-after-free` reliably detectable in the first place.
 
-## 6. 两个值得动手的对照实验
+## 6. Two experiments worth running by hand
 
-**实验 A：关掉隔离区，看错误"消失"**
+**Experiment A: turn off the quarantine and watch the error disappear**
 
 ```bash
 ASAN_OPTIONS=quarantine_size_mb=0 ./build/01_heap_use_after_free
 ```
 
-释放的 16 字节被立即复用，悬挂指针指向一块"合法"内存，ASan 不再报错。这反证了 quarantine 对 `use-after-free` 可检出性的决定性作用。
+The freed 16 bytes are reused immediately, the dangling pointer points at memory
+that is legitimate again, and ASan no longer reports anything. This is direct
+evidence that the quarantine decides whether a `use-after-free` is detectable.
 
-**实验 B：不加 `-fsanitize=address` 编译同一份代码**
+**Experiment B: build the same code without `-fsanitize=address`**
 
 ```bash
 gcc -std=c11 -g -O1 src/01_heap_use_after_free.c -o /tmp/no_asan && /tmp/no_asan
 ```
 
-大多数情况下程序"正常运行、退出码 0"——这类 bug 在原生环境下就是不报错的。用例 02 的越界写同理，可能污染相邻堆块元数据，直到某次 `free` 才以无关的崩溃形式爆出来。
+In most runs the program "works and exits with code 0" - this class of bug simply
+does not report itself natively. Case 02 behaves the same way: the overflowing
+write may corrupt the neighbouring heap chunk's metadata and only surface later as
+an unrelated crash inside some `free`.
 
-## 7. 实测踩坑：优化器会把"错误"抹掉
+## 7. Measured pitfall: the optimiser erases the "error"
 
-第一版代码在 GitHub Actions（GCC 15.2 / Ubuntu）上实测只命中 5/7，两个用例完全没复现。原因不是 ASan 不行，而是**未定义行为被编译器优化掉了**：
+The first version of the code detected only 5 of 7 cases on GitHub Actions
+(GCC 15.2 / Ubuntu). Two cases did not reproduce at all. The cause was not ASan but
+**undefined behaviour being optimised away**:
 
-| 用例 | 现象 | 根因 | 修法 |
+| Case | Symptom | Root cause | Fix |
 | --- | --- | --- | --- |
-| 05 double-free | 退出码 0，没有任何报告 | `free(p); free(p);` 中第二次 `free` 属于 UB，GCC 在 `-O1` 直接当死代码删掉 | 指针经 `volatile` 全局变量中转，编译器无法证明两次是同一地址 |
-| 07 stack-use-after-return | 报 `SEGV on unknown address 0x4` | `return local;` 属于 UB，GCC 把返回值替换成 `NULL`，于是访问的是空指针 | 地址经 `volatile` 全局槽逃逸；且该用例改用 clang 编译 |
+| 05 double-free | exit code 0, no report | In `free(p); free(p);` the second `free` is UB, so GCC deletes it as dead code at `-O1` | Route the pointer through a `volatile` global so the compiler cannot prove the two addresses are equal |
+| 07 stack-use-after-return | `SEGV on unknown address 0x4` | `return local;` is UB, so GCC replaces the returned value with `NULL` and the access dereferences a null pointer | Let the address escape through a `volatile` global slot, and build this case with clang |
 
-由此得到项目的第二个结论：**"能复现"本身也需要验证**。不跑一遍就照着预期写报告，很容易交上一份"7 个用例全部命中"的错误结论。
+This gives the project its second conclusion: **"it reproduces" is itself a claim
+that needs verification**. Writing a report against expectations without running it
+easily produces a wrong conclusion such as "all seven cases are detected".
 
-还有一个工具链事实：返回后使用的检测依赖"假栈"（fake stack），需要编译器生成 `__asan_stack_malloc_N` 调用，而 **GCC 从未实现这部分**——`detect_stack_use_after_return=1` 在 GCC 下是空操作，只有 Clang 的 `-fsanitize-address-use-after-return` 生效。所以 Makefile 让用例 07 优先用 clang 编译（找不到 clang 时退回 gcc 并在运行时提示）。
+One more toolchain fact: detecting use-after-return depends on the "fake stack",
+which requires the compiler to emit `__asan_stack_malloc_N` calls. **GCC never
+implemented that part** - `detect_stack_use_after_return=1` is a no-op under GCC,
+and only Clang's `-fsanitize-address-use-after-return` has an effect. The Makefile
+therefore prefers clang for case 07 (and falls back to gcc with a runtime hint).
 
-## 8. 已知限制
+## 8. Known limitations
 
-- ASan 只检查**插桩过的代码**，未插桩的第三方二进制（预编译 `.so`、JIT 代码）内部访存看不见。
-- 栈上错误需要 `-fno-omit-frame-pointer`，返回后使用还需 `detect_stack_use_after_return=1`（有额外开销，默认关闭）。
-- LeakSanitizer 在受限容器（无 `ptrace` 权限）中可能无法工作，此时 `detect_leaks` 会自动降级。
-- 影子内存本身占用 1/8 地址空间，32 位程序地址空间紧张时容易分配失败。
+- ASan only checks **instrumented code**; accesses inside uninstrumented third-party
+  binaries (prebuilt `.so` files, JIT-ed code) are invisible to it.
+- Stack errors need `-fno-omit-frame-pointer`, and use-after-return additionally
+  needs `detect_stack_use_after_return=1` (which costs extra, hence off by default).
+- LeakSanitizer may not work in restricted containers without the `ptrace`
+  capability; `detect_leaks` degrades automatically in that case.
+- Shadow memory itself occupies 1/8 of the address space, so 32-bit programs can
+  easily fail to allocate it.
 
-## 9. 参考资料
+## 9. References
 
 - Serebryany K. et al. *AddressSanitizer: A Fast Address Sanity Checker.* USENIX ATC 2012.
-- LLVM compiler-rt：`lib/asan/asan_shadow_memory.h`、`lib/asan/asan_rtl.cpp`
-- GCC 手册：`-fsanitize=address`、`-fsanitize-address-use-after-scope`
-- Clang 文档：AddressSanitizer / LeakSanitizer
+- LLVM compiler-rt: `lib/asan/asan_shadow_memory.h`, `lib/asan/asan_rtl.cpp`
+- GCC manual: `-fsanitize=address`, `-fsanitize-address-use-after-scope`
+- Clang documentation: AddressSanitizer / LeakSanitizer
 
 ## License
 

@@ -1,4 +1,4 @@
-# 在任意 Linux 上用一条命令跑完全部用例：
+# Run the full case set on any Linux host with one command:
 #   docker build -t cs340-asan .
 #   docker run --rm cs340-asan
 FROM gcc:13-bookworm
@@ -10,5 +10,6 @@ RUN apt-get update \
 WORKDIR /workspace
 COPY . /workspace
 
-# LeakSanitizer 在容器里需要 ptrace 能力，--privileged 或在宿主机上跑更省事
+# LeakSanitizer needs the ptrace capability inside a container; running on the
+# host or with --privileged is simpler.
 CMD ["bash", "-lc", "make && bash scripts/run_all.sh"]
