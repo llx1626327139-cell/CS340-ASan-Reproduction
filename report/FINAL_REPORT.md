@@ -52,7 +52,7 @@ TODO
 
 TODO
 
-### 3.4 Detection capability (C5)
+### 3.4 Detection capability （C5）
 
 TODO
 
