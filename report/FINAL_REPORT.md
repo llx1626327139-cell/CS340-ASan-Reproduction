@@ -26,8 +26,8 @@ Memory access bugs (buffer overflows, use-after-free) remain a serious problem f
 
 | ID | Claim | Paper location | Verdict |
 | --- | --- | --- | --- |
-| C1 | ASan averages 1.73x slowdown | Figure 2 | TODO |
-| C2 | ASan averages 3.37x memory | Table 1 | TODO |
+| C1 | ASan averages 1.73x slowdown | Figure 2 | Partially supported |
+| C2 | ASan averages 3.37x memory | Table 1 | Supported |
 | C4 | Binary size 1.5x-3.2x | Section 4 | Supported |
 | C5 | Detects heap/stack/global OOB, UAF, double free | 3.4, 3.5 | Supported |
 | C6 | Quarantine controls UAF detectability | 3.5, 4.3 | Partially supported |
