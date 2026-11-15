@@ -52,7 +52,7 @@ Under the paper's measurement settings, peak resident memory (`VmHWM`) increases
 
 The ASan-instrumented binary (`build/bench_asan`) is **1.58x** larger than the baseline (`build/bench_base`). This falls within the paper's reported range of 1.5x to 3.2x (average 2.5x).
 
-### 3.4 Detection capability （C5）
+### 3.4 Detection capability (C5)
 
 We successfully reproduced all 7 error classes locally: heap-use-after-free, heap-buffer-overflow, stack-buffer-overflow, global-buffer-overflow, double-free, memory leak, and stack-use-after-return. All test cases were correctly caught by ASan/LSan and reported with the expected error type. (Raw logs are available in `docs/measured/logs/`).
 
