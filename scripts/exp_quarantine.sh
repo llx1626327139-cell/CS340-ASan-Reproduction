@@ -1,102 +1,97 @@
 #!/usr/bin/env bash
 #
-# Test the mechanism claim from paper sections 3.5 / 4.3:
+# Detection-side control for paper sections 3.5 / 4.3:
 #   "Quarantine size (default: 256MB). This value controls the ability to find
 #    heap-use-after-free bugs."
 #
 # Method: run the same case (01_heap_use_after_free) once at each of two quarantine
-# sizes.
-#   quarantine=256MB (default) -> freed memory goes into the quarantine, its shadow
-#                                 is marked as "freed"
-#   quarantine=0               -> freed memory returns to the allocator free list
-#                                 immediately
+# sizes and keep BOTH the verdict and the raw stderr, so that any claim about a class
+# difference can be re-checked later.
 #
-# Output: docs/measured/exp_quarantine.md
-# Note: the conclusion is generated from the measured result; "will miss" is not
-# assumed in advance.
+#   quarantine=256MB (default) -> freed memory goes into the quarantine, shadow 0xFD
+#   quarantine=0               -> freed memory returns to the allocator free list at
+#                                 once, shadow still 0xFD until the block is reused
+#
+# Note what this program cannot show: it allocates nothing between free() and the read,
+# so the block is never reused and no false negative is possible at any setting. A
+# real false negative needs `free(p); q = malloc(same size); read p[...]`.
+# See docs/measured/exp_quarantine.md.
+#
+# Output: docs/measured/exp_quarantine.md  (summary, hand-maintained text below)
+#         docs/measured/logs/quarantine_<q>MB.log  (raw stderr of each run)
 
 set -u
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$ROOT_DIR/build/01_heap_use_after_free"
 OUT="$ROOT_DIR/docs/measured/exp_quarantine.md"
+LOGDIR="$ROOT_DIR/docs/measured/logs"
 
 if [ ! -x "$BIN" ]; then
     echo "error: $BIN not found, run make first" >&2
     exit 1
 fi
 
-mkdir -p "$(dirname "$OUT")"
+mkdir -p "$(dirname "$OUT")" "$LOGDIR"
 
 run_case() {
-    local q="$1" out code verdict
-    out=$(ASAN_OPTIONS="quarantine_size_mb=$q:detect_leaks=0:symbolize=1" "$BIN" 2>&1)
+    local q="$1" log verdict code
+    log="$LOGDIR/quarantine_${q}MB.log"
+    ASAN_OPTIONS="quarantine_size_mb=$q:detect_leaks=0:symbolize=1" "$BIN" > "$log" 2>&1
     code=$?
-    verdict=$(echo "$out" | grep -m1 -oE 'AddressSanitizer: [a-z][a-z-]*' | sed 's/AddressSanitizer: //' || true)
-    printf '%s|%s|%s' "$code" "$verdict" "$( [ -n "$verdict" ] && echo yes || echo no )"
+    verdict=$(grep -m1 -oE 'AddressSanitizer: [a-z][a-z-]*' "$log" | sed 's/AddressSanitizer: //' || true)
+    printf '%s|%s' "$code" "$verdict"
 }
 
 a=$(run_case 256)
 b=$(run_case 0)
-code_a=${a%%|*}; rest_a=${a#*|}; cls_a=${rest_a%%|*}; hit_a=${rest_a##*|}
-code_b=${b%%|*}; rest_b=${b#*|}; cls_b=${rest_b%%|*}; hit_b=${rest_b##*|}
-
-show() { if [ "$1" = yes ]; then printf 'yes (`%s`)' "$2"; else printf '**no** (not detected)'; fi; }
+code_a=${a%%|*}; cls_a=${a#*|}
+code_b=${b%%|*}; cls_b=${b#*|}
 
 {
-    echo "# Experiment: effect of the quarantine size on use-after-free detectability"
+    echo "# Experiment: does the quarantine size change use-after-free detectability?"
     echo
-    echo "Corresponds to paper section 3.5 (False Negatives) and section 4.3 (Tuning"
-    echo "Accuracy And Resource Usage):"
-    echo
-    echo "> Quarantine size (default: 256MB). This value controls the ability to find heap-use-after-free bugs."
-    echo
-    echo "Program under test: \`src/01_heap_use_after_free.c\` (malloc(16) -> free -> read"
-    echo "\`buf[2]\`). A 16-byte object is exactly the size an allocator reuses at once."
+    echo "Raw stderr of each run is committed as \`docs/measured/logs/quarantine_256MB.log\`"
+    echo "and \`docs/measured/logs/quarantine_0MB.log\`; this table is derived from them."
     echo
     echo "- Run time (UTC): \`$(date -u '+%Y-%m-%d %H:%M:%S')\`"
     echo "- commit: \`$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')\`"
     echo
-    echo "| quarantine | Exit code | Reported | Error class |"
-    echo "| --- | --- | --- | --- |"
-    echo "| 256 MB (default) | $code_a | $(show "$hit_a" "$cls_a") | \`${cls_a:-n/a}\` |"
-    echo "| 0 MB | $code_b | $(show "$hit_b" "$cls_b") | \`${cls_b:-n/a}\` |"
+    echo "| quarantine | Exit code | Reported class |"
+    echo "| --- | --- | --- |"
+    echo "| 256 MB (default) | $code_a | \`${cls_a:-not detected}\` |"
+    echo "| 0 MB | $code_b | \`${cls_b:-not detected}\` |"
     echo
-    echo "## Measured conclusion"
+    echo "## Reading"
     echo
-    if [ "$hit_a" = yes ] && [ "$hit_b" = no ]; then
-        echo "With the quarantine disabled the UAF is **no longer detected**, which is"
-        echo "consistent with the paper's statement that the quarantine decides whether a"
-        echo "UAF is detectable."
-    elif [ "$hit_a" = yes ] && [ "$hit_b" = yes ] && [ "$cls_a" != "$cls_b" ]; then
-        echo "With the quarantine disabled the program **is still killed**, but the reported"
-        echo "class changes from \`$cls_a\` to \`$cls_b\`. In other words the access is not let"
-        echo "through; it is classified as a different error."
+    if [ "$code_a" != "0" ] && [ "$code_b" = "0" ]; then
+        echo "With the quarantine disabled the access is **not reported at all**. That is"
+        echo "the false negative the paper's sentence describes, and it would support the"
+        echo "claim — check the two logs to see which allocation reused the block."
+    elif [ "$code_a" != "0" ] && [ "$code_b" != "0" ]; then
+        echo "Both runs terminate. Termination alone does not support the claim: the paper's"
+        echo "sentence is about *missing* a use-after-free, and this program allocates nothing"
+        echo "between the \`free\` and the read, so the block cannot be reused and the shadow"
+        echo "stays \`0xFD\` at either setting. A difference in the reported class (if the two"
+        echo "logs show one) means a different error was reported, not a false negative."
         echo
-        echo "The most likely reason (inferred, not verified at source level): with"
-        echo "\`quarantine_size_mb=0\` the free returns the block to the ASan allocator at once,"
-        echo "so the whole user area is re-marked as a redzone (shadow \`0xFA/0xFB\`) instead of"
-        echo "keeping the \"freed\" marker (\`0xFD\`). The same access therefore falls into the"
-        echo "redzone branch during the check and is reported as \`heap-buffer-overflow\`."
-        echo
-        echo "**This experiment therefore supports only half of the paper's claim**: the"
-        echo "quarantine does change the detection result (the class changes), but on this"
-        echo "microbenchmark it does not produce a false negative. Observing a real false"
-        echo "negative would require allocating an object of the same size immediately after"
-        echo "the free so that the memory is reused - a scenario this experiment does not cover."
+        echo "This control is therefore recorded as **inconclusive**. The experiment that"
+        echo "would test the sentence is \`free(p); q = malloc(same size); read p[...]\`:"
+        echo "with the default quarantine the read is still reported as"
+        echo "\`heap-use-after-free\`, with \`quarantine_size_mb=0\` the block is reused for"
+        echo "\`q\` and the read lands in live memory, which is the false negative."
+        echo "It is designed in \`docs/measured/exp_quarantine.md\` but not executed here."
     else
-        echo "Both quarantine sizes give the same result: \`${cls_a:-not detected}\`. For this"
-        echo "particular program and allocation sequence the quarantine size does not change"
-        echo "the verdict, so nothing can be concluded about the paper's claim from it."
+        echo "Unexpected outcome (baseline run did not terminate with an error); inspect the"
+        echo "two logs before drawing any conclusion."
     fi
     echo
-    echo "## Why this experiment is worth running"
+    echo "## Why the parameter is still recorded"
     echo
-    echo "The paper sets the quarantine to 0 when measuring performance and keeps the"
-    echo "default 256 MB when hunting for bugs - same tool, same code, one parameter"
-    echo "changed, and detectability can change with it. That is exactly the kind of"
-    echo "\"setting that affects the results\" which has to be recorded, and the reason the"
-    echo "\`quarantine\` row in the deviation table needs a justification."
+    echo "The paper measures performance with the quarantine at 0 and hunts bugs with the"
+    echo "default 256 MB. Any reproduction that silently fixes one of the two settings is"
+    echo "not comparable with the paper, so the parameter has its own row in the deviation"
+    echo "table and its cost side is measured separately (see \`performance.md\`)."
 } > "$OUT"
 
 echo "result written to $OUT"
