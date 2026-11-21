@@ -48,10 +48,12 @@ We reproduced five claims: runtime overhead (C1), memory overhead (C2), binary s
 ### 3.1 Runtime overhead (C1, Figure 2)
 
 We measured the runtime overhead on a local machine (Intel Core i7-14650HX, WSL2 Ubuntu, GCC 15.2.0). The benchmark `access_heavy` and `mixed` show slowdowns of **1.35x** and **4.68x** under the paper's settings (`quarantine=0`, `redzone=32`). A purely `malloc`-intensive microbenchmark (`malloc_heavy`) shows a much higher **21.18x** slowdown. This discrepancy is expected because the microbenchmark spends 100% of its time in allocation routines, whereas the paper's SPEC CPU2006 benchmarks (which average 1.73x) have significant real computation to amortize the ASan check overhead.
+![Runtime overhead](docs/measured/fig_time.png)
 
 ### 3.2 Memory overhead (C2, Table 1)
 
 Under the paper's measurement settings, peak resident memory (`VmHWM`) increases by **3.66x** for `malloc_heavy`, **1.46x** for `access_heavy`, and **1.86x** for `mixed`. The 3.66x result is highly consistent with the paper's reported average of 3.37x. Note that the default ASan configuration (with a 256MB quarantine) inflates the `malloc_heavy` memory ratio to 220x, confirming that the quarantine is the primary driver of memory overhead in allocation-heavy workloads.
+![Memory overhead](docs/measured/fig_mem.png)
 
 ### 3.3 Binary size (C4)
 
@@ -88,6 +90,7 @@ Our measured slowdowns deviate from the paper's 73% average, but this is explain
 **Motivation:** Paper section 4.3 only qualitatively states that a larger redzone may lead to significant slowdown and memory usage, without providing a quantified curve.
 **Design:** We fixed the hardware, workload (`retained_heap`), and compiler, and varied **only** the heap redzone size (`ASAN_OPTIONS=redzone=N`) from 16 to 2048 bytes.
 **Result:** As the redzone grows from 32B to 2048B, runtime increases from ~30ms to ~471ms (15.47x), and peak memory (VmHWM) increases from ~26MB to ~572MB (21.44x). This quantitatively confirms the paper's qualitative warning: larger redzones buy a larger detectable overflow distance at a steep cost in time and memory.
+![Redzone extension](docs/measured/fig_extension.png)
 
 ## 6. Conclusion
 
