@@ -7,6 +7,7 @@
 ## Group and Contribution
 
 | Member | Student ID | Contribution |
+| --- | --- | --- |
 | 陈禹诚 | 1240001636 | Detection cases (C5), CI pipeline, benchmark harness |
 | 赖泊霖 | 1240012602 | Paper analysis, claim mapping, baseline measurements |
 | 徐梁杰 | 1240014650 | Extension (redzone sweep), memory profiling (C2, C4) |
