@@ -76,7 +76,7 @@ ASAN_OPTIONS=verbosity=1 ./build/01_heap_use_after_free
 # abort immediately on error, convenient under a debugger
 ASAN_OPTIONS=abort_on_error=1 ./build/01_heap_use_after_free
 
-# disable the quarantine and watch how the error becomes invisible once memory is reused at once
+# run with the quarantine disabled and compare with the default run
 ASAN_OPTIONS=quarantine_size_mb=0 ./build/01_heap_use_after_free
 ```
 
