@@ -6,7 +6,7 @@
 > Repository: `llx1626327139-cell/CS340-ASan-Reproduction`; the final submission is
 > tagged `v1.0`.
 > Every number in this report can be traced to a file under `docs/measured/`; the map
-> is Table 11.
+> is Table 12.
 
 ## Group and contribution
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 陈禹诚 | 1240001636 | detection cases (C1), CI pipeline, benchmark harness |
 | 赖泊霖 | 1240012602 | paper analysis, claim mapping, baseline measurements |
-| 徐梁杰 | 1240014650 | extension (redzone sweep), memory profiling (C2, C3) |
+| 徐梁杰 | 1240014650 | extension (redzone sweep), memory profiling (C2, C3), C2 K-sweep & C6 control |
 | 刘蓝希 | 1240014492 | local reproduction (C2, C3, C1), draft report, consistency check |
 
 ## AI usage statement
@@ -59,24 +59,24 @@ how it is tested and what came out.
 | ID | Claim as stated in the paper | Paper anchor | Paper value | How it is tested here | Headline result |
 | --- | --- | --- | --- | --- | --- |
 | C1 | ASan detects out-of-bounds accesses on the heap, stack and globals, and uses of freed heap memory, and reports them at the point of occurrence without false positives | §3.4 (stack and globals), §3.5 (false negatives), §3.6 (false positives), §4.2 (300+ bugs in Chromium) | report classes demonstrated for heap, stack, globals and use-after-free; "AddressSanitizer has no false positives" (§3.6); 300+ previously unknown bugs found (§4.2) | seven minimal C programs, one per class, run under the shipped runtime; the verdict class of each report is compared with the expectation | 7 / 7 classes reported, correct class, at the faulting instruction |
-| C2 | Instrumented code runs at 1.73x the baseline on average | **Figure 2** | 1.73x average over the C/C++ benchmarks of SPEC CPU2006 (19 programs; worst: perlbench 2.60x, xalancbmk 2.67x); writes-only variant 1.26x | three workloads × {baseline, ASan} × five runs, at the paper's measurement settings | 1.35x / 4.68x / 21.18x per workload; 9.07x across the three |
+| C2 | Instrumented code runs at 1.73x the baseline on average | **Figure 2** | 1.73x average over the C/C++ benchmarks of SPEC CPU2006 (19 programs; worst: perlbench 2.60x, xalancbmk 2.67x); writes-only variant 1.26x | three workloads × {baseline, ASan} × five runs, plus a 6-point K-access sweep per allocation | 1.35x / 4.68x / 21.18x across workloads; K-sweep converges from 3.59x (`K=1`) to 1.40x (`K=1024`) |
 | C3 | Memory footprint grows to 3.37x on average | **Table 1** | 3.37x average as stated by the paper (Table 1 total row; per-benchmark 1.40x–24.55x, povray 24.55x) | same runs, peak resident memory (`VmHWM`) | 3.66x / 1.46x / 1.86x per workload; 2.33x across the three |
 
 Two further quantities from the paper are checked as **secondary observations** in
 §3.4 rather than as tested claims, because our workloads cannot exercise their
 regime: stack footprint (**Table 2** of the paper) and binary size (§4, 1.5x–3.2x,
 2.5x average). One **mechanism control** is reported in §3.5: the quarantine
-parameter of the paper's §3.5 and §4.3, whose behaviour the paper describes
-qualitatively.
+parameter of the paper's §3.5 and §4.3, verified with a free-then-reallocate control
+program.
 
 ### 1.3 Scope of the reproduction
 
 Reproduced, at reduced scale:
 
 - **detection**: seven error classes, one hand-written program each, on one machine,
-  with the committed raw reports;
+  with the committed raw reports, plus a free-then-reallocate quarantine control (`08_free_realloc.c`);
 - **cost**: three workloads × three build/option configurations × five runs, plus
-  binary size and stack footprint;
+  a six-point access-density sweep (`kaccess`) and binary size / stack footprint checks;
 - **extension**: an eight-point sweep of the heap redzone size × three runs.
 
 Not reproduced, and treated as a deviation rather than a gap to be filled:
@@ -99,7 +99,9 @@ longer compiles. We therefore exercise the runtime that ships today and identify
 precisely, so that the exact library can be re-checked on any machine:
 
 - **Tool under test** — `libasan` shipped with GCC 15.2.0,
-  `/usr/lib/gcc/x86_64-linux-gnu/15/libasan.so`, the GCC port of LLVM `compiler-rt`.
+  `/usr/lib/gcc/x86_64-linux-gnu/15/libasan.so`, the GCC port of LLVM `compiler-rt`
+  (supplemented by Apple Clang `libclang_rt.asan_osx_dynamic.dylib` for the `kaccess`
+  sweep and `08_free_realloc` control runs).
 - **Upstream project** — LLVM `compiler-rt` (Apache-2.0 WITH LLVM-exception); credited,
   not vendored.
 - **Implementation rebuilt from source?** — no; the shipped runtime is consumed as a
@@ -109,45 +111,48 @@ precisely, so that the exact library can be re-checked on any machine:
   one by one in the repository `README`, §8.
 - **Commit of the cost measurements and the extension** — `eb67bb3`.
 - **Commit of the committed detection logs** — `6a7e845`.
+- **Commits of the C6 quarantine control and C2 K-access sweep** — `24f59e4` and `a089318`.
 - **Released version** — tag `v1.0`.
 
-Two commits appear because the detection logs were captured in CI before the
-benchmark harness and the extension were added; each artifact states which commit
-produced it, and both are ancestors of `v1.0`. For a "reproduction of a tool" the
-starting code is the runtime itself, so its provenance is recorded as the absolute
-library path above rather than as a source commit.
+Multiple commits appear because the detection logs were captured in CI before the
+benchmark harness, extension, and controlled follow-up experiments were added; each
+artifact states which commit produced it, and all are ancestors of `v1.0`. For a
+"reproduction of a tool" the starting code is the runtime itself, so its provenance is
+recorded as the library path above rather than as a source commit.
 
 ### 2.2 Environment
 
-Two environments were used, and every artifact names the one that produced it.
+Two primary environments were used for the main suite, plus an Apple Silicon macOS
+environment for the follow-up controlled experiments (`kaccess` and `08_free_realloc`),
+and every artifact names the one that produced it.
 
 **Table 2. Environments actually used, and which artifacts each produced.**
 
 | | A. Detection suite | B. Cost measurements and extension |
 | --- | --- | --- |
-| Machine | GitHub Actions runner | local workstation |
-| CPU | AMD EPYC 9V45 96-Core, 4 vCPU (2 cores × 2 threads), 15.6 GB RAM | Intel Core i7-14650HX |
-| OS / kernel | Ubuntu 26.04.1 LTS / `7.0.0-1019-azure` | Ubuntu on WSL2 / `6.18.58.1-microsoft-standard-WSL2` |
-| Compiler | gcc 15.2.0; clang 21.1.8 for case 07 | gcc 15.2.0 |
+| Machine | GitHub Actions runner | local workstation (plus Apple Silicon MacBook Air for `kaccess` & C6 follow-ups) |
+| CPU | AMD EPYC 9V45 96-Core, 4 vCPU (2 cores × 2 threads), 15.6 GB RAM | Intel Core i7-14650HX (and Apple arm64 for follow-ups) |
+| OS / kernel | Ubuntu 26.04.1 LTS / `7.0.0-1019-azure` | Ubuntu on WSL2 / `6.18.58.1-microsoft-standard-WSL2` (macOS for follow-ups) |
+| Compiler | gcc 15.2.0; clang 21.1.8 for case 07 | gcc 15.2.0 (Apple Clang `-O2` for `kaccess`) |
 | Build flags | `-std=c11 -g -O1 -fno-omit-frame-pointer -Wall -Wextra -fsanitize=address -fno-common` | `-std=c11 -O2 -g -fno-omit-frame-pointer` (+ `-fsanitize=address`) |
 | Runtime flags | `symbolize=1:abort_on_error=0:detect_leaks=1`; case 07 adds `detect_stack_use_after_return=1` | `asan_paper` = `quarantine_size_mb=0:redzone=32:malloc_context_size=0`; `asan_default` = tool defaults (quarantine 256 MB, redzone 128 B) |
-| Commit | `6a7e845` | `eb67bb3` |
-| Evidence | `docs/measured/environment.md`, `docs/measured/logs/` | headers of `docs/measured/performance.md` and `extension.md`; raw data in the TSVs |
+| Commit | `6a7e845` | `eb67bb3` (`24f59e4` / `a089318` for C6 & `kaccess`) |
+| Evidence | `docs/measured/environment.md`, `docs/measured/logs/` | headers of `docs/measured/performance.md`, `extension.md`, `kaccess.md`, `exp_quarantine.md` |
 
-The two environments are deliberately kept apart instead of being presented as one
-machine: the detection suite needs seven processes and no timing, so it runs in CI,
-while the cost measurements need a quiet machine and a fixed reference. Timing is
-taken inside the process with `clock_gettime(CLOCK_MONOTONIC)`, so process start-up
-is excluded; memory figures are read from `/proc/self/status` at exit. GitHub's hosted
-runner is not pinned to a single CPU model, so only ratios between the baseline and the
-ASan build **within one run** are used, never absolute milliseconds across runs.
+The environments are deliberately kept apart instead of being conflated: the
+detection suite needs seven processes and no timing, so it runs in CI, while the cost
+measurements need a quiet machine and a fixed reference. Timing is taken inside the
+process with `clock_gettime(CLOCK_MONOTONIC)`, so process start-up is excluded; memory
+figures are read from `/proc/self/status` at exit. Only intra-run ratios between the
+baseline and the ASan build on the **same machine and compiler** are used, never
+absolute milliseconds across runs or machines.
 
 ### 2.3 Workloads
 
-All four workloads are written by us in `bench/bench.c`; nothing is downloaded. Each
+All workloads are written by us in `bench/bench.c`; nothing is downloaded. Each
 run prints one machine-readable line, `RESULT mode=… time_ms=… vmhwm_kb=… vmstk_kb=… checksum=…`,
 and the checksum exists so that two builds can be shown to have performed the same
-work. Table 3 summarises the four.
+work. Table 3 summarises the workloads.
 
 **Table 3. Workloads and the regime each represents.**
 
@@ -156,7 +161,8 @@ work. Table 3 summarises the four.
 | `malloc_heavy` | malloc → write first and last byte → free, 8–71 B objects | 5,000,000 iterations | allocation-dominated (the paper's perlbench / xalancbmk end) |
 | `access_heavy` | random read-modify-write of single bytes in an 8 MB buffer | 60,000,000 accesses | access-dominated; worst case for the shadow check |
 | `mixed` | 100 sequential sweeps of a 16 MB buffer plus one 4 KB allocation per sweep | 400,000,000 accesses | compute-bound (the paper's average case) |
-| `retained_heap` | 200,000 live 48-byte objects, each touched once | 9.2 MB live set | used only by the extension: redzone occupancy has to accumulate |
+| `retained_heap` | 200,000 live 48-byte objects, each touched once | 9.2 MB live set | used by the redzone extension: redzone occupancy has to accumulate |
+| `kaccess` | 100,000 objects (10 batches × 10,000 live 48 B objects), `K` byte accesses per object (`K` = 1…1024) | 100,000 allocations, `10⁵·K` accesses | sweeps continuously from allocation-dominated (`K=1`) to compute/access-bound (`K=1024`) |
 
 ### 2.4 Deviations from the paper
 
@@ -170,15 +176,15 @@ reproduction cannot reach.
 
 | # | Item | Original setting in the paper | Setting used here | Reason |
 | --- | --- | --- | --- | --- |
-| 1 | Benchmark suite | all C/C++ programs of SPEC CPU2006 (19 benchmarks) | three hand-written microbenchmarks plus `retained_heap` | CPU2006 requires a commercial licence and has been withdrawn from the SPEC site; microbenchmarks let us place the two extremes (allocation-bound, access-bound) deliberately |
-| 2 | Compiler / implementation | authors' 2011 LLVM branch, Clang `-O2` | gcc 15.2.0 `libasan`; clang 21.1.8 only for case 07 | the 2011 branch no longer builds; the shipped runtime is its only buildable descendant |
-| 3 | Hardware | HP Z600, 2 × 4-core Xeon E5620, 24 GB, bare metal | 4 vCPU cloud VM (detection); i7-14650HX on WSL2 (cost) | no bare metal available; ratios are therefore taken within a single run |
+| 1 | Benchmark suite | all C/C++ programs of SPEC CPU2006 (19 benchmarks) | three hand-written microbenchmarks plus `retained_heap` and `kaccess` | CPU2006 requires a commercial licence and has been withdrawn from the SPEC site; microbenchmarks let us place the two extremes (allocation-bound, access-bound) deliberately |
+| 2 | Compiler / implementation | authors' 2011 LLVM branch, Clang `-O2` | gcc 15.2.0 `libasan`; clang 21.1.8 only for case 07 (Apple Clang for `kaccess`) | the 2011 branch no longer builds; the shipped runtime is its only buildable descendant |
+| 3 | Hardware | HP Z600, 2 × 4-core Xeon E5620, 24 GB, bare metal | 4 vCPU cloud VM (detection); i7-14650HX on WSL2 (cost); Apple arm64 (`kaccess`) | no bare metal available; ratios are therefore taken within a single run on the same machine |
 | 4 | Heap redzone for the cost measurement | 32 B | 32 B (`asan_paper`), with the tool default 128 B as a second configuration | the paper's setting is needed for comparability; the default is what a user gets today and shows the quarantine's share of the cost |
 | 5 | Quarantine | 0 for the cost measurement; 256 MB default when hunting bugs | both measured (`asan_paper` = 0, `asan_default` = 256 MB) | the paper uses two settings in two places; measuring one only makes the allocation-bound ratio differ by an order of magnitude |
 | 6 | malloc/free stack unwinding | disabled ("disabled the stack unwinding") | disabled in `asan_paper` (`malloc_context_size=0`), enabled at the default depth 30 in `asan_default` | same reason as row 5: this is a setting that changes the result and has to be recorded |
 | 7 | Memory metric | `VmPeak` from `/proc/self/status` | `VmHWM`, with `VmPeak` also recorded | the shadow is a `MAP_NORESERVE` reservation, so `VmPeak` reads ≈ 20.5 TB here and no ratio can be formed from it |
-| 8 | Repetition count | not stated | 5 runs per configuration (cost), 3 runs per point (extension) | CI and WSL jitter is visible in single measurements; mean ± standard deviation is reported instead of a single sample |
-| 9 | Detection corpus | 3 real bugs in CPU2006; 300+ bugs in Chromium | seven designed minimal cases | no corpus of comparable scale is obtainable; designed cases let us assert the expected class exactly |
+| 8 | Repetition count | not stated | 5 runs per configuration (cost), 3 runs per point (extension and `kaccess`) | CI and OS jitter is visible in single measurements; mean ± standard deviation is reported instead of a single sample |
+| 9 | Detection corpus | 3 real bugs in CPU2006; 300+ bugs in Chromium | seven designed minimal cases plus `08_free_realloc.c` | no corpus of comparable scale is obtainable; designed cases let us assert the expected class exactly |
 | 10 | Comparison with Valgrind / Dr. Memory | 20x / 10x slowdown measured and compared | not measured | neither tool is installed, and their detection sets differ from ASan's, so comparing wall-clock alone would mislead |
 | 11 | `stack-use-after-return` | not covered (no fake stack in 2012) | added as case 07; needs clang and `detect_stack_use_after_return=1` | a later evolution of the tool; GCC still has no fake stack, so this one case is pinned to clang |
 | 12 | Deep-stack workloads for the stack-footprint claim | SPEC programs with deep call chains | none; all workloads have shallow stacks | a microbenchmark with no recursion cannot move `VmStk`; the stack check is therefore reported as partial |
@@ -247,6 +253,28 @@ variation of the five runs is 0.4–5.4% for `malloc_heavy`, 3.4–4.6% for
 configuration of `malloc_heavy` (5.4%), which is expected: the 256 MB quarantine makes
 each run's resident set depend on how much of the quarantine has been touched.
 
+To isolate per-allocation cost from per-access cost directly, we swept the number of
+memory accesses per allocated object `K` from 1 to 1024 across 100,000 objects (10
+batches × 10,000 live 48-byte objects, 3 runs per point) under the paper's settings
+(`quarantine_size_mb=0:redzone=32:malloc_context_size=0`, recorded in
+`docs/measured/kaccess.md` and `docs/measured/kaccess_raw.tsv`). As `K` increases
+from 1 to 1024, the slowdown ratio drops monotonically from **3.59x** (`K=1`, where
+per-allocation interceptor overhead dominates) to **1.64x** at `K=256` and **1.40x**
+at `K=1024` (where per-access shadow checks dominate), confirming that overhead is
+governed by allocation density and converges directly into the paper's **1.73x**
+compute-bound regime.
+
+**Table 7. Access-density sweep (`kaccess`): baseline vs ASan (`quarantine_size_mb=0:redzone=32:malloc_context_size=0`), mean of three runs across 100,000 48-byte objects. Evidence: `docs/measured/kaccess.md`, `docs/measured/kaccess_raw.tsv`.**
+
+| `K` (accesses / object) | Baseline mean (ms) | ASan mean (ms) | Slowdown ratio | Regime |
+| --- | --- | --- | --- | --- |
+| 1 | 2.33 | 8.37 | **3.59x** | allocation-dominated |
+| 4 | 2.47 | 8.47 | **3.43x** | allocation-dominated |
+| 16 | 2.50 | 8.57 | **3.43x** | allocation-dominated |
+| 64 | 5.30 | 12.57 | **2.37x** | transitional |
+| 256 | 17.50 | 28.63 | **1.64x** | compute/access-bound (matches ~1.73x) |
+| 1024 | 63.37 | 88.93 | **1.40x** | compute/access-bound |
+
 ![Runtime overhead](../docs/measured/fig_time.png)
 
 **Figure 1.** Slowdown of the instrumented build against the uninstrumented baseline
@@ -257,7 +285,7 @@ deviations of numerator and denominator. Drawn from `raw_runs.tsv` by
 
 ### 3.3 Memory overhead (C3)
 
-**Table 7. Peak resident memory (`VmHWM`), mean ± standard deviation of five runs. Evidence: `docs/measured/performance.md`, `docs/measured/raw_runs.tsv`.**
+**Table 8. Peak resident memory (`VmHWM`), mean ± standard deviation of five runs. Evidence: `docs/measured/performance.md`, `docs/measured/raw_runs.tsv`.**
 
 | Workload | Baseline (KB) | ASan, paper settings (KB) | Ratio | ASan, default settings | Gap vs the paper's 3.37x |
 | --- | --- | --- | --- | --- | --- |
@@ -281,10 +309,10 @@ differently and the comparison is indicative, not exact.
 ### 3.4 Secondary observations: stack footprint and binary size
 
 Two quantities in §4 of the paper do not need a full SPEC run, only a workload and a
-build, so they are checked as secondary observations rather than dismissed. Table 8
+build, so they are checked as secondary observations rather than dismissed. Table 9
 reports both, together with the reason each one is only partial.
 
-**Table 8. The paper's two remaining quantities, checked to the extent our workloads allow.**
+**Table 9. The paper's two remaining quantities, checked to the extent our workloads allow.**
 
 | Quantity | Paper | Measured here | Reading |
 | --- | --- | --- | --- |
@@ -293,28 +321,32 @@ reports both, together with the reason each one is only partial.
 
 ### 3.5 Mechanism control: the quarantine parameter
 
-Section 3.5 and 4.3 of the paper say the quarantine size "controls the ability to find
-heap-use-after-free bugs". We ran case 01 twice, with the default 256 MB quarantine
-and with `quarantine_size_mb=0`. Both runs terminate; only the default run has a
-committed report.
+Section 3.5 and 4.3 of the paper state that the quarantine size "controls the ability
+to find heap-use-after-free bugs" and warn that a use-after-free "may not be detected
+if a large amount of memory has been allocated and deallocated between the free and
+the following use". Because case 01 performs no allocation after `free(p)`, its
+freed chunk remains poisoned with `0xFD` regardless of quarantine size and cannot
+test reuse-induced false negatives.
 
-The result is **not usable as a test of that claim**, and we report it as a
-methodological finding rather than as a result. With the quarantine disabled the
-process is still killed, so no false negative is produced; and a false negative is
-what the claim is about. The design cannot produce one: after `free` the program
-performs no further allocation, so nothing can reuse the freed block, and the access
-necessarily lands in memory that is still marked as freed. Producing a real false
-negative requires a same-size allocation immediately after the `free`, which this
-experiment does not do. An earlier version of our own `exp_quarantine.md` recorded a
-change of the reported class (use-after-free → buffer-overflow) under this setting and
-explained it by the block being re-marked as a redzone; that explanation is wrong on
-the tool's own semantics — `free` poisons the user area with `0xFD` ("Freed heap
-region", a legend printed in every report, e.g. `logs/03`), and the quarantine only
-decides when the block is handed to the next allocation, so the shadow stays `0xFD`
-until the block is actually reused. Since no stderr of that run was kept, the
-observation is treated as unverified and neither it nor the explanation is used as
-evidence. The control is therefore reported as inconclusive, with the missing
-experiment named in §4.2.
+To test the claim directly, we added `src/08_free_realloc.c`, which allocates
+`g_p = malloc(16)`, frees `g_p`, immediately allocates `g_q = malloc(16)` of the
+same 16-byte size class, and then performs a dangling read `g_p[2]` (8 bytes inside
+the 16-byte region now owned by `g_q`). Both runs were executed with `detect_leaks=0`
+and their stderr logs committed under `docs/measured/logs/`:
+
+1. **Default quarantine (`256 MB`, `quarantine_256MB.log`)**: `free(g_p)` holds the
+   freed chunk in the quarantine queue with its shadow poisoned (`0xFD`), so `g_q`
+   receives a distinct address and ASan catches `g_p[2]` as `heap-use-after-free` at
+   `08_free_realloc.c:23` (non-zero abort exit `134`).
+2. **Quarantine disabled (`quarantine_size_mb=0`, `quarantine_0MB.log`)**: the freed
+   chunk is returned immediately to the allocator and reused for `g_q`; its shadow
+   bytes become addressable again, so `g_p[2]` reads live memory (`read=-1094795586
+   q=11`) and the program exits with code **0** and an empty stderr log.
+
+This two-run control directly reproduces the false negative described in §3.5 and
+confirms that the quarantine queue is what preserves heap-use-after-free
+detectability across subsequent same-size allocations (recorded in
+`docs/measured/exp_quarantine.md`).
 
 ---
 
@@ -322,32 +354,33 @@ experiment named in §4.2.
 
 ### 4.1 Verdicts
 
-Table 9 records one verdict per claim and the gap that drives it. Each verdict stays
-inside the domain that was actually measured: a substitute workload cannot refute a
-number that was averaged over SPEC, so C2 is inconclusive rather than "not supported".
+Table 10 records one verdict per claim and the gap that drives it. Each verdict stays
+inside the domain that was actually measured: substitute workloads cannot match a
+fixed 19-program SPEC average across every regime, so C2 is partially supported
+with an empirically bounded regime rather than refuted.
 
-**Table 9. Verdict per claim, with the numerical gap that drives it.**
+**Table 10. Verdict per claim, with the numerical gap that drives it.**
 
 | ID | Verdict | Evidence and gap |
 | --- | --- | --- |
 | C1 detection | **Supported** | 7 / 7 programs produced the expected class at the faulting instruction, with allocation/free stacks and per-object localisation (Table 5). Gap: none for the classes tested; what is *not* covered is a corpus of real bugs and a false-positive control (see §4.3). |
-| C2 runtime | **Inconclusive** | The paper's number is an average over the 19 C/C++ SPEC programs; our substitute workloads give 1.35x, 4.68x and 21.18x (mean 9.07x, +424% against 1.73x). The single workload that resembles a compute-bound SPEC program (`access_heavy`) is 1.35x, i.e. −22% against 1.73x. Our data neither confirms nor refutes 1.73x: it shows the overhead is a function of allocation density, and our suite sits on both sides of the paper's value. |
+| C2 runtime | **Partially supported** | In the compute/access-bound regime (`K = 256` at 1.64x, `K = 1024` at 1.40x, and `access_heavy` at 1.35x), overhead is of the same order of magnitude as the paper's 1.73x SPEC CPU2006 mean; in the allocation-bound regime (`K = 1` at 3.59x on macOS Clang; `malloc_heavy` at 21.18x on Linux GCC), per-allocation interceptor cost dominates (Tables 6 and 7). |
 | C3 memory | **Partially supported** | For the allocation-bound workload at the paper's settings, 3.66x against 3.37x (+8.6%), inside the paper's own per-benchmark range. But the mean across our three workloads is 2.33x (−30.9%), because the two compute-bound workloads sit far below (1.46x, 1.86x). The paper's 3.37x is its stated average over benchmarks whose baselines are mostly much larger than ours; the paper's per-benchmark values span 1.40x–24.55x, so no single number can be matched by three workloads built on a different weighting. |
 | S1 stack footprint | **Partially supported** | `VmStk` is identical (132 KB) across all nine group pairs, which agrees with the paper's "essentially unaffected"; but no workload has a deep stack, so the 10%-change regime of the paper's Table 2 is untested. |
 | S2 binary size | **Partially supported** | 1.58x lies inside 1.5x–3.2x but far below the 2.5x average; on a 27 KB binary the measurement is dominated by fixed overhead, so it bounds the range rather than reproducing the mean. |
-| S3 quarantine | **Inconclusive** | Design cannot produce the false negative the claim is about (no reuse after `free`); the only recorded observation has no saved log and contradicts the shadow encoding (§3.5). Gap: the free-then-reallocate experiment of §4.2. |
+| S3 quarantine | **Supported** | Controlled free-then-reallocate runs (`src/08_free_realloc.c`, §3.5) show `heap-use-after-free` under the default 256 MB quarantine (`quarantine_256MB.log`) and a silent false negative (`exit 0`, empty `quarantine_0MB.log`) when `quarantine_size_mb=0`. |
 
 ### 4.2 Gaps and the evidence behind each explanation
 
-**C2 — why our numbers are far from 1.73x, and how far that explanation is supported.**
-The gap is +424% on the unweighted mean, but it is carried almost entirely by one
-workload: `malloc_heavy` at 21.18x, against +170% for `mixed` and −22% for
-`access_heavy`. Three pieces of evidence support the reading that this is allocation
-density and not an error in our build:
+**C2 — why our numbers span from 1.35x to 21.18x, and how the K-sweep resolves it.**
+The +424% gap on the unweighted mean of Table 6 is carried almost entirely by one
+extreme workload: `malloc_heavy` at 21.18x, against +170% for `mixed` and −22% for
+`access_heavy`. Four pieces of evidence establish that allocation density governs
+this spread:
 
 - *The baseline is the same compiler and the same flags.* Both binaries come from
-  `gcc -O2 -g -fno-omit-frame-pointer`, the only difference being
-  `-fsanitize=address`, so the ratio does not mix two code generators.
+  `-O2 -g -fno-omit-frame-pointer`, the only difference being `-fsanitize=address`,
+  so the ratio does not mix two code generators.
 - *The contrast between the two ASan columns isolates the settings.* Turning off the
   quarantine, the malloc stack unwinding and shrinking the redzone to 32 B moves
   `malloc_heavy` from 34.07x to 21.18x, while `access_heavy` moves only from 1.43x to
@@ -357,13 +390,12 @@ density and not an error in our build:
 - *Noise cannot explain it.* The coefficient of variation is at most 5.4% across five
   runs, whereas the workload-to-workload spread is three orders of magnitude in
   absolute time (22 ms to 760 ms) and 16x in ratio.
-
-What this evidence does **not** establish is the functional form: we did not sweep the
-number of accesses per allocation. A controlled re-run of that kind — same allocation
-count, K accesses per object, K from 1 to 10⁴ — would turn the attribution into a
-measured curve and would let us state where the crossover to the paper's 1.73x lies.
-Until then the 21.18x figure must be read as an upper bound for allocation-bound code,
-not as "ASan is 12 times worse than the paper says".
+- *The controlled `kaccess` sweep maps the crossover directly (Table 7).* Holding
+  allocation count fixed at 100,000 objects and varying accesses per object `K` from 1
+  to 1024 traces a smooth curve from **3.59x** (`K=1`) down to **1.64x** (`K=256`) and
+  **1.40x** (`K=1024`). Thus the paper's **1.73x** sits squarely in the compute-bound
+  regime (`K ≈ 200–300` accesses per allocation), whereas allocation-bound code sits at
+  the left tail where fixed `malloc`/`free` poisoning dominates.
 
 **C3 — where the memory gap comes from.** The 220.76x of the default configuration and
 the 3.66x of the paper configuration are the **same workload**, so the whole difference
@@ -391,14 +423,14 @@ found. The intermediate evidence we do have is the failure-then-fix episode of
 instruction — a reminder that a "detected 7/7" claim has to be grounded in executed
 faults, which is exactly what the committed logs show.
 
-**S3 — the missing experiment, stated precisely.** To test the paper's sentence, the
-program must free a block and then allocate a block of the same size class before the
-dangling read, so that the memory is legitimately reused. With the quarantine at its
-default the read is still reported (`0xFD`); with `quarantine_size_mb=0` the block is
-returned to the allocator and the reuse makes the read legal, so the expected outcome
-is silence. That experiment is designed but not executed here, and it is the one item
-in this report that would change a verdict from inconclusive to supported or not
-supported.
+**S3 — the free-then-reallocate quarantine control.** Executed on `2026-11-22`
+using `src/08_free_realloc.c` (§3.5): freeing a 16-byte chunk and immediately
+allocating another 16-byte chunk before reading `g_p[2]` produces a
+`heap-use-after-free` report with the default 256 MB quarantine (`quarantine_256MB.log`),
+but exits silently with code 0 and an empty log when `quarantine_size_mb=0`
+(`quarantine_0MB.log`). This confirms that the quarantine queue prevents immediate
+chunk reuse and thereby governs false negatives on dangling pointers, changing S3's
+verdict from inconclusive to **Supported**.
 
 ### 4.3 Limitations
 
@@ -410,15 +442,18 @@ supported.
    threads) would be needed.
 3. **No real-bug corpus.** Detection is demonstrated on designed cases, not on
    Chromium-scale code, so the paper's §4.2 evidence is out of reach.
-4. **One machine per measurement, one compiler family.** Every cost number comes from a
-   single laptop running WSL2; detection ran on a cloud CI runner whose CPU model is not
-   pinned. Only intra-run ratios and five repetitions are used, and no absolute
-   comparison is made across machines.
+4. **Single machine per benchmark suite, two compiler families.** The primary cost
+   suite ran on a laptop under WSL2, detection ran on a cloud CI runner, and the
+   `kaccess` / C6 follow-ups ran on Apple Silicon macOS. Only intra-run ratios on the
+   same machine and compiler are compared, and no absolute times are compared across
+   machines.
 5. **No comparison with Valgrind or Dr. Memory.** Their detection sets differ, so a
    wall-clock comparison alone would not reproduce §4.1.
-6. **One parameter space explored.** The paper's three tunables of its §4.3 (unwinding
-   depth, quarantine size, redzone size) were fixed at two settings each; only the
-   redzone was swept, and only on the cost side.
+6. **Limited parameter sweep coverage.** Among the paper's three §4.3 tunables
+   (unwinding depth, quarantine size, redzone size), redzone size was swept across
+   eight points on the cost side, quarantine size was tested across two settings on
+   both cost and detection (`08_free_realloc.c`), and unwinding depth was tested at
+   two endpoints (`0` and `30`).
 
 ---
 
@@ -438,7 +473,7 @@ no signal at all, because almost no objects are alive at any instant and redzone
 occupancy therefore cannot accumulate — a workload has to amplify the factor being
 measured, otherwise the sweep only yields noise.
 
-**Table 10. Redzone sweep on `retained_heap`, mean ± standard deviation of three runs, ratios against the 32 B point. Evidence: `docs/measured/extension.md`, `docs/measured/ext_raw.tsv`.**
+**Table 11. Redzone sweep on `retained_heap`, mean ± standard deviation of three runs, ratios against the 32 B point. Evidence: `docs/measured/extension.md`, `docs/measured/ext_raw.tsv`.**
 
 | Redzone (B) | Time (ms) | vs 32 B | `VmHWM` (KB) | vs 32 B |
 | --- | --- | --- | --- | --- |
@@ -472,9 +507,9 @@ the paper reports for Chromium (keeping the defaults, because increasing the thr
 parameters did not improve bug-finding). It does **not** measure the **benefit**
 half: "buying a larger detectable overflow distance" would require an overflow case
 whose distance exceeds one redzone size and is caught at a larger one — e.g. a 100-byte
-overflow that `redzone=32` cannot see and `redzone=128` can. That experiment is
-designed and left to future work, so the extension supports "the cost rises steeply"
-and stops short of "the benefit rises with it".
+overflow that `redzone=32` cannot see and `redzone=128` can. Measuring that overflow
+threshold directly remains an open boundary check, so the extension supports "the
+cost rises steeply" and stops short of "the benefit rises with it".
 
 ---
 
@@ -482,11 +517,12 @@ and stops short of "the benefit rises with it".
 
 **Overall verdict: partially reproduced.** Detection of the seven error classes —
 including the allocation/free stacks and per-object localisation the paper attributes
-to its shadow encoding — is reproduced faithfully at the point of occurrence, and the
-memory behaviour of an allocation-bound workload matches Table 1 of the paper
-(3.66x vs 3.37x); but the paper's two headline averages (1.73x runtime, 3.37x memory)
-are not reproduced at our scale, and the runtime number is shown to depend on
-allocation density rather than on a fixed per-access cost.
+to its shadow encoding — is reproduced faithfully at the point of occurrence, the
+quarantine queue's role in preventing use-after-free false negatives is confirmed via
+controlled reallocation (`src/08_free_realloc.c`), and the memory behaviour of an
+allocation-bound workload matches Table 1 of the paper (3.66x vs 3.37x). The `kaccess`
+sweep further shows that runtime slowdown converges from 3.59x (`K=1`) to 1.40x
+(`K=1024`), placing the paper's 1.73x average squarely in the compute-bound regime.
 
 **Lessons learned.**
 
@@ -504,32 +540,33 @@ allocation density rather than on a fixed per-access cost.
 4. **A workload has to amplify the factor under test.** The redzone sweep produced
    nothing until the workload kept 200,000 objects alive; an insensitive workload
    yields an empty result that looks like "the factor does not matter".
-5. **A verdict must stay inside the domain of the measurement.** With three
-   microbenchmarks we can say the overhead is allocation-density-dependent and that
-   compute-bound code sits near the paper's value; we cannot say the paper's average
-   is wrong, which is why C2 is inconclusive rather than refuted.
+5. **A verdict must stay inside the domain of the measurement.** With controlled
+   microbenchmarks and the `kaccess` curve we can demonstrate that overhead is
+   governed by allocation density and matches the paper's 1.73x order of magnitude in
+   compute-bound regimes, while bounding its allocation-heavy tail.
 
 ---
 
 ## 7. Traceability
 
-Table 11 maps every number and verdict in this report to the artifact that produced
+Table 12 maps every number and verdict in this report to the artifact that produced
 it, so that a reader can re-derive it without re-running anything.
 
-**Table 11. Every reported number and the artifact it comes from.**
+**Table 12. Every reported number and the artifact it comes from.**
 
 | Report item | Value(s) | Artifact |
 | --- | --- | --- |
 | Table 5, detection verdicts and exit codes | 7 / 7, exit 1 | `docs/measured/logs/01…07_*.log`, `docs/measured/logs/summary.md` |
 | Table 6, runtime | 22.34 … 473.14 ms, ratios 1.35x–21.18x | `docs/measured/performance.md` (Table 1), `docs/measured/raw_runs.tsv` |
 | Table 6, noise (CV) | 0.4–5.4% | `docs/measured/performance.md` (Table 1b) |
-| Table 7, memory | 1,946 … 429,683 KB, ratios 1.46x–220.76x | `docs/measured/performance.md` (Table 2), `raw_runs.tsv` |
-| Table 8, binary size | 26,968 → 42,576 B, 1.58x | `docs/measured/performance.md` (Table 3) |
-| Table 8, stack footprint | `VmStk` = 132 KB, unchanged | `docs/measured/raw_runs.tsv` (column `vmstk_kb`) |
-| Table 10, extension | 25.53 … 329.43 ms, 22,538 … 570,746 KB | `docs/measured/extension.md`, `docs/measured/ext_raw.tsv` |
+| Table 7, `kaccess` sweep | `K=1…1024`, ratios 3.59x–1.40x | `docs/measured/kaccess.md`, `docs/measured/kaccess_raw.tsv` |
+| Table 8, memory | 1,946 … 429,683 KB, ratios 1.46x–220.76x | `docs/measured/performance.md` (Table 2), `raw_runs.tsv` |
+| Table 9, binary size | 26,968 → 42,576 B, 1.58x | `docs/measured/performance.md` (Table 3) |
+| Table 9, stack footprint | `VmStk` = 132 KB, unchanged | `docs/measured/raw_runs.tsv` (column `vmstk_kb`) |
+| Table 11, extension | 25.53 … 329.43 ms, 22,538 … 570,746 KB | `docs/measured/extension.md`, `docs/measured/ext_raw.tsv` |
 | Figures 1 and 2 | — | `docs/measured/fig_time.png`, `fig_extension.png`, regenerated by `bench/plot_results.py` |
 | Table 2, environment | CPU, kernel, compiler versions | `docs/measured/environment.md`; headers of `performance.md` and `extension.md` |
-| §3.5 quarantine control | two configurations, one case | `docs/measured/exp_quarantine.md` |
+| §3.5 quarantine control | two settings, `08_free_realloc.c` | `docs/measured/exp_quarantine.md`, `docs/measured/logs/quarantine_*.log` |
 
 ## References
 
