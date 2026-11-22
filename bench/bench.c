@@ -1,23 +1,6 @@
 /*
  * bench.c - the overhead measurement vehicle for Figure 2 / Table 1 of the paper
- *
- * The paper uses SPEC CPU2006; three microbenchmarks stand in for it here (the
- * deviation is recorded in the report):
- *   malloc_heavy  frequent small malloc/free, matching perlbench / xalancbmk
- *   access_heavy  many 1-2 byte random accesses, the pattern ASan instrumentation
- *                 handles worst
- *   mixed         sequential large-block access plus periodic allocation, close to
- *                 an ordinary compute-bound workload
- *
- * It prints one machine-readable line:
- *   RESULT mode=<m> time_ms=<x> vmpeak_kb=<x> vmhwm_kb=<x> vmstk_kb=<x> checksum=<x>
- *
- * vmhwm (peak resident memory) is more meaningful than vmpeak: ASan's shadow memory
- * is a MAP_NORESERVE virtual reservation that pushes vmpeak into the terabytes, so
- * it cannot be used to compare real memory overhead.
  */
-/* -std=c11 is strict ISO mode and hides the POSIX clock_gettime declaration, so the
-   POSIX.1-2008 feature macro is defined explicitly here. */
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdint.h>
@@ -36,7 +19,6 @@ static uint64_t xrand(void)
     return g_state;
 }
 
-/* Read a numeric field (in KB) from /proc/self/status */
 static long vm_field(const char *key)
 {
     FILE *f = fopen("/proc/self/status", "r");
@@ -63,7 +45,6 @@ static double now_ms(void)
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
 }
 
-/* Frequent small allocations: malloc -> write -> free on every iteration */
 static unsigned long work_malloc_heavy(int iters)
 {
     unsigned long sum = 0;
@@ -81,7 +62,6 @@ static unsigned long work_malloc_heavy(int iters)
     return sum;
 }
 
-/* Many single-byte random accesses: random read-modify-write in an 8MB buffer */
 static unsigned long work_access_heavy(int iters)
 {
     const size_t cap = 8u << 20;
@@ -102,7 +82,6 @@ static unsigned long work_access_heavy(int iters)
     return sum;
 }
 
-/* Sequential large-block access plus periodic allocation */
 static unsigned long work_mixed(int iters)
 {
     const size_t cap = 4u << 20;
@@ -130,9 +109,6 @@ static unsigned long work_mixed(int iters)
     return sum;
 }
 
-/* Hold many small objects at once: redzone occupancy accumulates linearly with the
-   number of live objects, which amplifies the memory effect of the redzone (workloads
-   with few live objects at any instant are insensitive to it). */
 static unsigned long work_retained_heap(int nblocks)
 {
     const size_t block = 48;
@@ -162,6 +138,44 @@ static unsigned long work_retained_heap(int nblocks)
     return sum;
 }
 
+/* Same allocation count, K accesses per object. This isolates "cost per
+   allocation" from "cost per access": K=1 behaves like malloc_heavy, large K
+   approaches a compute-bound workload. The paper's 1.73x average sits in the
+   compute-bound regime, so this curve is where the two ends meet. */
+static unsigned long work_kaccess(int k)
+{
+    const int batch = 10000;
+    const int nbatch = 10;
+    const size_t block = 48;
+    unsigned char **slots = malloc(sizeof(unsigned char *) * (size_t)batch);
+    unsigned long sum = 0;
+    if (slots == NULL) {
+        return 0;
+    }
+    for (int b = 0; b < nbatch; ++b) {
+        int live = 0;
+        for (int i = 0; i < batch; ++i) {
+            unsigned char *p = malloc(block);
+            if (p == NULL) {
+                break;
+            }
+            for (int j = 0; j < k; ++j) {
+                p[j & 31] = (unsigned char)(i + j);
+                sum += p[j & 31];
+            }
+            slots[live++] = p;
+        }
+        for (int i = 0; i < live; ++i) {
+            sum += slots[i][0];
+        }
+        for (int i = 0; i < live; ++i) {
+            free(slots[i]);
+        }
+    }
+    free(slots);
+    return sum;
+}
+
 int main(int argc, char **argv)
 {
     const char *mode = (argc > 1) ? argv[1] : "mixed";
@@ -184,8 +198,16 @@ int main(int argc, char **argv)
         t0 = now_ms();
         checksum = work_mixed(0);
         t1 = now_ms();
+    } else if (strcmp(mode, "kaccess") == 0) {
+        int k = (argc > 2) ? atoi(argv[2]) : 1;
+        if (k < 1) {
+            k = 1;
+        }
+        t0 = now_ms();
+        checksum = work_kaccess(k);
+        t1 = now_ms();
     } else {
-        fprintf(stderr, "usage: %s [malloc_heavy|access_heavy|retained_heap|mixed]\n", argv[0]);
+        fprintf(stderr, "usage: %s [malloc_heavy|access_heavy|retained_heap|mixed|kaccess <K>]\n", argv[0]);
         return 2;
     }
 
